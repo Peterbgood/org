@@ -29,6 +29,10 @@ const App: React.FC = () => {
 
   const deleteTodo = (id: string) => setTodos(todos.filter(t => t.id !== id));
 
+  const toggleComplete = (id: string) => {
+    setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  };
+
   const startEdit = (todo: Todo) => {
     setEditingId(todo.id);
     setEditText(todo.text);
@@ -45,7 +49,6 @@ const App: React.FC = () => {
       const cursorTarget = e.currentTarget.selectionStart;
       const before = editText.substring(0, cursorTarget);
       const after = editText.substring(cursorTarget);
-      // Inserts a newline and a bullet point
       setEditText(before + "\n• " + after);
     }
   };
@@ -58,94 +61,158 @@ const App: React.FC = () => {
     setTodos(newTodos);
   };
 
-  // Helper to style bullet points differently from text
+  // Capitalizes the first alphabetical letter following a bullet point line break
   const renderFormattedText = (text: string) => {
-    return text.split(/(\•\s)/g).map((part, i) => 
-      part === '• ' 
-        ? <span key={i} className="text-slate-500 text-sm font-bold">{part}</span> 
-        : <span key={i}>{part}</span>
-    );
+    const lines = text.split('\n');
+    
+    return lines.map((line, lineIndex) => {
+      let processedLine = line;
+      
+      if (line.trim().startsWith('•')) {
+        // Find where the bullet point structure finishes and text begins
+        const bulletMatch = line.match(/^(\s*•\s*)(.*)/);
+        if (bulletMatch) {
+          const prefix = bulletMatch[1];
+          const content = bulletMatch[2];
+          // Capitalize the first true letter of the bullet's internal text
+          const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
+          processedLine = prefix + capitalizedContent;
+        }
+      }
+
+      return (
+        <div key={lineIndex} className="min-h-[1.25rem]">
+          {processedLine.split(/(\•\s)/g).map((part, i) => 
+            part === '• ' 
+              ? <span key={i} className="text-stone-900 font-black mr-0.5">• </span> 
+              : <span key={i}>{part}</span>
+          )}
+        </div>
+      );
+    });
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-950 py-6 px-3 font-sans">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-[#E6EDE2] text-stone-900 py-10 px-4 font-mono antialiased selection:bg-stone-900 selection:text-[#E6EDE2]">
+      <div className="max-w-xl mx-auto bg-white border-2 border-stone-950 shadow-[4px_4px_0px_0px_rgba(12,12,12,1)] p-5">
         
-        {/* Compact Header Section */}
-        <div className="flex items-center justify-between mb-4 px-1">
-          <h1 className="text-xl font-bold text-white tracking-tight">
-            Task <span className="text-indigo-400">Flow</span>
-          </h1>
-          <p className="text-slate-500 text-xs">{todos.length} items</p>
-        </div>
+        {/* Funky Studio Header */}
+        <header className="border-b-2 border-dashed border-stone-300 pb-4 mb-5 flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-black uppercase tracking-tight text-stone-900">
+              TASK_DECK_
+            </h1>
+            <p className="text-[10px] text-stone-500 font-sans tracking-wider uppercase mt-0.5">
+              Current Session Directives
+            </p>
+          </div>
+          <span className="bg-stone-900 text-white text-[10px] px-2 py-0.5 font-bold uppercase tracking-wider">
+            {todos.filter(t => !t.completed).length} Remainder
+          </span>
+        </header>
 
-        {/* Input Card */}
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-1.5 mb-4 border border-white/10 shadow-lg">
-          <form onSubmit={addTodo} className="flex gap-2">
+        {/* Compressed Input Bar */}
+        <div className="mb-6">
+          <form onSubmit={addTodo} className="flex border-2 border-stone-950 bg-stone-50 shadow-[2px_2px_0px_0px_rgba(12,12,12,1)]">
             <input 
-              className="flex-1 bg-transparent text-white px-4 py-2 rounded-lg focus:outline-none placeholder:text-slate-600 text-sm"
+              className="flex-1 bg-transparent py-2 px-3 focus:outline-none placeholder:text-stone-400 text-xs font-bold tracking-wide"
               value={inputValue} 
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Add a task..."
+              placeholder="GENERATE ENTRY..."
             />
-            <button className="bg-indigo-500 hover:bg-indigo-400 text-white px-4 py-2 rounded-lg font-bold text-sm transition-all active:scale-95">
-              +
+            <button className="bg-stone-900 hover:bg-stone-800 text-white border-l-2 border-stone-950 text-xs font-black px-4 transition-colors">
+              ADD+
             </button>
           </form>
         </div>
 
-        {/* List Section */}
-        <div className="space-y-1.5">
+        {/* Ultra-Dense Stacked List Section */}
+        <div className="divide-y divide-stone-200">
           {todos.length === 0 && (
-            <div className="text-center py-10 bg-white/5 rounded-xl border border-dashed border-white/10">
-              <p className="text-slate-600 text-sm">List is empty</p>
+            <div className="text-center py-12 border-2 border-dashed border-stone-200 bg-stone-50/50">
+              <p className="text-xs font-bold uppercase text-stone-400 tracking-wider">
+                System clear / No entries found
+              </p>
             </div>
           )}
 
           {todos.map((todo, index) => (
             <div 
               key={todo.id} 
-              className="group flex items-start justify-between gap-3 py-1.5 px-3 rounded-lg transition-all border bg-white/5 border-white/10"
+              className="group flex flex-col justify-between py-2.5 first:pt-0 last:pb-0 transition-colors duration-150"
             >
               {editingId === todo.id ? (
-                <div className="flex flex-1 flex-col gap-2 w-full py-1">
+                <div className="flex flex-1 flex-col gap-2 w-full pt-1">
                   <textarea 
-                    className="flex-1 bg-slate-800 text-white px-3 py-2 rounded-lg border border-indigo-500 focus:outline-none resize-none min-h-[100px] text-sm"
+                    className="w-full bg-stone-50 text-stone-900 p-2.5 border-2 border-stone-950 focus:outline-none resize-none min-h-[90px] text-xs font-medium tracking-wide leading-relaxed"
                     value={editText} 
                     onChange={(e) => setEditText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     autoFocus
                   />
-                  <button 
-                    onClick={saveEdit} 
-                    className="bg-indigo-500 hover:bg-indigo-400 px-4 py-1.5 rounded-lg text-white text-xs font-bold self-end"
-                  >
-                    Save Changes
-                  </button>
+                  <div className="flex justify-end gap-3 items-center">
+                    <button 
+                      onClick={() => setEditingId(null)} 
+                      className="text-[10px] font-bold text-stone-400 hover:text-stone-600 uppercase tracking-wider"
+                    >
+                      [Abort]
+                    </button>
+                    <button 
+                      onClick={saveEdit} 
+                      className="bg-stone-900 hover:bg-stone-800 text-white text-[10px] font-black uppercase px-3 py-1 border border-stone-950 transition-colors shadow-[1px_1px_0px_0px_rgba(12,12,12,1)]"
+                    >
+                      Save_
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <span className="flex-1 text-sm text-slate-200 whitespace-pre-wrap break-words text-left pt-1 leading-relaxed">
-                    {renderFormattedText(todo.text)}
-                  </span>
+                  {/* Text / Core Content Area */}
+                  <div className="flex items-start flex-1 min-w-0 pr-2">
+                    <span 
+                      onClick={() => toggleComplete(todo.id)}
+                      className={`flex-1 text-xs font-medium tracking-wide whitespace-pre-wrap break-words text-left leading-normal cursor-pointer transition-colors select-none ${
+                        todo.completed ? 'text-stone-300 line-through decoration-stone-400 decoration-2' : 'text-stone-800 hover:text-stone-950'
+                      }`}
+                    >
+                      {renderFormattedText(todo.text)}
+                    </span>
+                  </div>
 
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    <div className="flex flex-col opacity-0 group-hover:opacity-100 transition-opacity mr-1">
-                      <button onClick={() => moveTodo(index, 'up')} className="text-slate-600 hover:text-white text-[10px]">▲</button>
-                      <button onClick={() => moveTodo(index, 'down')} className="text-slate-600 hover:text-white text-[10px]">▼</button>
+                  {/* Micro Horizontal Toolbar (Flat Aligned Layout) */}
+                  <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-100 h-4 mt-1">
+                    {/* Reorder Elements */}
+                    <div className="flex items-center gap-2 border-r border-stone-200 pr-3 h-full">
+                      <button 
+                        onClick={() => moveTodo(index, 'up')} 
+                        disabled={index === 0}
+                        className="text-stone-400 hover:text-stone-900 disabled:opacity-10 text-[9px] font-bold p-0.5 transition-colors"
+                        title="Move Up"
+                      >
+                        ▲
+                      </button>
+                      <button 
+                        onClick={() => moveTodo(index, 'down')} 
+                        disabled={index === todos.length - 1}
+                        className="text-stone-400 hover:text-stone-900 disabled:opacity-10 text-[9px] font-bold p-0.5 transition-colors"
+                        title="Move Down"
+                      >
+                        ▼
+                      </button>
                     </div>
 
+                    {/* Clean Action Tags */}
                     <button 
                       onClick={() => startEdit(todo)}
-                      className="p-2 text-slate-500 hover:text-indigo-400"
+                      className="text-[10px] font-bold text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-wider"
                     >
-                      ✎
+                      Edit
                     </button>
                     <button 
                       onClick={() => deleteTodo(todo.id)}
-                      className="p-2 text-slate-500 hover:text-red-400"
+                      className="text-[10px] font-bold text-stone-300 hover:text-red-600 transition-colors uppercase tracking-wider"
                     >
-                      🗑
+                      Drop
                     </button>
                   </div>
                 </>
@@ -154,16 +221,18 @@ const App: React.FC = () => {
           ))}
         </div>
 
-        {/* Inline Footer - No longer sticky */}
+        {/* Flush Brutalist Footer */}
         {todos.length > 0 && (
-          <div className="mt-6 flex justify-center pb-12">
+          <footer className="mt-6 flex justify-center border-t-2 border-stone-200 pt-4">
             <button 
-              onClick={() => setTodos([])}
-              className="text-xs text-slate-600 hover:text-red-400 uppercase tracking-widest font-semibold py-2 px-4 border border-white/5 rounded-lg hover:bg-white/5 transition-all"
+              onClick={() => {
+                if(confirm("Wipe completely?")) setTodos([]);
+              }}
+              className="text-[9px] text-stone-400 hover:text-red-600 uppercase font-black tracking-widest py-1.5 px-3 hover:bg-stone-50 border border-transparent hover:border-stone-200 transition-all"
             >
-              Clear All Tasks
+              Wipe Core Cache
             </button>
-          </div>
+          </footer>
         )}
       </div>
     </div>
