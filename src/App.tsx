@@ -20,10 +20,33 @@ const App: React.FC = () => {
     localStorage.setItem('apple_problem_solver_nodes', JSON.stringify(nodes));
   }, [nodes]);
 
+  // Helper to ensure proper capitalization and structure on entry/saves
+  const formatNodeText = (rawText: string): string => {
+    const lines = rawText.split('\n');
+    return lines
+      .map((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return '';
+
+        if (index === 0) {
+          // Line 1: Title (Strip any accidental leading dashes, capitalize first letter)
+          const cleanTitle = trimmed.replace(/^-\s*/, '');
+          return cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
+        } else {
+          // Lines 2+: Bullet Points (Ensure it starts with a clean dash and is capitalized)
+          const cleanBullet = trimmed.replace(/^-\s*/, '');
+          return `- ${cleanBullet.charAt(0).toUpperCase() + cleanBullet.slice(1)}`;
+        }
+      })
+      .join('\n');
+  };
+
   const addNode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
-    setNodes([{ id: crypto.randomUUID(), text: inputValue, completed: false }, ...nodes]);
+
+    const processedText = formatNodeText(inputValue);
+    setNodes([{ id: crypto.randomUUID(), text: processedText, completed: false }, ...nodes]);
     setInputValue('');
   };
 
@@ -39,7 +62,8 @@ const App: React.FC = () => {
   };
 
   const saveEdit = () => {
-    setNodes(nodes.map(n => n.id === editingId ? { ...n, text: editText } : n));
+    const processedText = formatNodeText(editText);
+    setNodes(nodes.map(n => n.id === editingId ? { ...n, text: processedText } : n));
     setEditingId(null);
   };
 
@@ -49,6 +73,8 @@ const App: React.FC = () => {
       const cursorTarget = e.currentTarget.selectionStart;
       const before = editText.substring(0, cursorTarget);
       const after = editText.substring(cursorTarget);
+      
+      // Inserts a clean line break with a sub-bullet ready to go
       setEditText(before + "\n- " + after);
     }
   };
@@ -65,25 +91,23 @@ const App: React.FC = () => {
     const lines = text.split('\n');
     
     return lines.map((line, lineIndex) => {
-      let processedLine = line;
-      
-      if (line.trim().startsWith('-')) {
-        const bulletMatch = line.match(/^(\s*-\s*)(.*)/);
-        if (bulletMatch) {
-          const prefix = bulletMatch[1];
-          const content = bulletMatch[2];
-          const capitalizedContent = content.charAt(0).toUpperCase() + content.slice(1);
-          processedLine = prefix + capitalizedContent;
-        }
+      if (lineIndex === 0) {
+        // Render Title: Bold, dark text, absolutely no dash
+        return (
+          <div key={lineIndex} className="text-neutral-950 font-semibold text-[13.5px] tracking-wide mb-0.5">
+            {line}
+          </div>
+        );
       }
 
+      // Render Bullet Points: Indented, clean light-grey dash indicator
+      const isBullet = line.trim().startsWith('-');
+      const displayContent = isBullet ? line.replace(/^-\s*/, '') : line;
+
       return (
-        <div key={lineIndex} className="min-h-[1.25rem]">
-          {processedLine.split(/(\-\s)/g).map((part, i) => 
-            part === '- ' 
-              ? <span key={i} className="text-neutral-400 font-semibold mr-1">- </span> 
-              : <span key={i}>{part}</span>
-          )}
+        <div key={lineIndex} className="pl-3.5 flex items-start min-h-[1.25rem] text-neutral-600 text-[12.5px] mt-0.5">
+          <span className="text-neutral-400 font-medium mr-2 select-none">-</span>
+          <span className="flex-1">{displayContent}</span>
         </div>
       );
     });
@@ -97,8 +121,6 @@ const App: React.FC = () => {
         <header className="mb-3 px-1 flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-neutral-900">Solver</span>
-           
-          
           </div>
           <span className="font-normal text-neutral-400">
             {nodes.filter(n => !n.completed).length} items open
@@ -138,10 +160,11 @@ const App: React.FC = () => {
               {editingId === node.id ? (
                 <div className="flex flex-1 flex-col gap-2 w-full">
                   <textarea 
-                    className="w-full bg-neutral-50 text-neutral-900 p-2.5 rounded-xl border border-neutral-200 focus:outline-none text-[13px] font-normal tracking-wide leading-relaxed"
+                    className="w-full bg-neutral-50 text-neutral-900 p-2.5 rounded-xl border border-neutral-200 focus:outline-none text-[13px] font-normal tracking-wide leading-relaxed font-mono"
                     value={editText} 
                     onChange={(e) => setEditText(e.target.value)}
                     onKeyDown={handleKeyDown}
+                    rows={3}
                     autoFocus
                   />
                   <div className="flex justify-end gap-3 items-center">
@@ -165,8 +188,8 @@ const App: React.FC = () => {
                   <div className="flex items-start flex-1 min-w-0 px-0.5">
                     <span 
                       onClick={() => toggleComplete(node.id)}
-                      className={`flex-1 text-[13px] font-normal tracking-wide whitespace-pre-wrap break-words text-left leading-relaxed transition-colors cursor-pointer select-none ${
-                        node.completed ? 'text-neutral-300 line-through decoration-neutral-200 font-normal' : 'text-neutral-800'
+                      className={`flex-1 tracking-wide whitespace-pre-wrap break-words text-left leading-relaxed transition-all cursor-pointer select-none ${
+                        node.completed ? 'opacity-30 line-through decoration-neutral-400' : ''
                       }`}
                     >
                       {renderSystemText(node.text)}
