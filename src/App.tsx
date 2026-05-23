@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronUp, ChevronDown, Pencil, Trash2 } from 'lucide-react';
 
 interface ProblemNode {
   id: string;
@@ -16,11 +17,23 @@ const App: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
 
+  // Ref to target the editing textarea for auto-resizing
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   useEffect(() => {
     localStorage.setItem('apple_problem_solver_nodes', JSON.stringify(nodes));
   }, [nodes]);
 
-  // Helper to ensure proper capitalization and structure on entry/saves
+  // Dynamically adjust textarea height to fit 100% of the content
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Reset height to let it shrink if text was deleted
+      textareaRef.current.style.height = 'auto';
+      // Set height to the exact scroll height of the internal text
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [editText, editingId]);
+
   const formatNodeText = (rawText: string): string => {
     const lines = rawText.split('\n');
     return lines
@@ -29,11 +42,9 @@ const App: React.FC = () => {
         if (!trimmed) return '';
 
         if (index === 0) {
-          // Line 1: Title (Strip any accidental leading dashes, capitalize first letter)
           const cleanTitle = trimmed.replace(/^-\s*/, '');
           return cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1);
         } else {
-          // Lines 2+: Bullet Points (Ensure it starts with a clean dash and is capitalized)
           const cleanBullet = trimmed.replace(/^-\s*/, '');
           return `- ${cleanBullet.charAt(0).toUpperCase() + cleanBullet.slice(1)}`;
         }
@@ -74,7 +85,6 @@ const App: React.FC = () => {
       const before = editText.substring(0, cursorTarget);
       const after = editText.substring(cursorTarget);
       
-      // Inserts a clean line break with a sub-bullet ready to go
       setEditText(before + "\n- " + after);
     }
   };
@@ -92,7 +102,6 @@ const App: React.FC = () => {
     
     return lines.map((line, lineIndex) => {
       if (lineIndex === 0) {
-        // Render Title: Bold, dark text, absolutely no dash
         return (
           <div key={lineIndex} className="text-neutral-950 font-semibold text-[13.5px] tracking-wide mb-0.5">
             {line}
@@ -100,7 +109,6 @@ const App: React.FC = () => {
         );
       }
 
-      // Render Bullet Points: Indented, clean light-grey dash indicator
       const isBullet = line.trim().startsWith('-');
       const displayContent = isBullet ? line.replace(/^-\s*/, '') : line;
 
@@ -158,25 +166,26 @@ const App: React.FC = () => {
               className="group flex flex-col justify-between p-3 transition-colors bg-white hover:bg-neutral-50/60"
             >
               {editingId === node.id ? (
-                <div className="flex flex-1 flex-col gap-2 w-full">
+                /* Auto-Expanding Edit View */
+                <div className="flex flex-1 flex-col gap-2.5 w-full">
                   <textarea 
-                    className="w-full bg-neutral-50 text-neutral-900 p-2.5 rounded-xl border border-neutral-200 focus:outline-none text-[13px] font-normal tracking-wide leading-relaxed font-mono"
+                    ref={textareaRef}
+                    className="w-full bg-neutral-50 text-neutral-900 p-3 rounded-xl border border-neutral-200 focus:outline-none text-[13px] font-normal tracking-wide leading-relaxed font-mono resize-none overflow-hidden min-h-[90px]"
                     value={editText} 
                     onChange={(e) => setEditText(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    rows={3}
                     autoFocus
                   />
-                  <div className="flex justify-end gap-3 items-center">
+                  <div className="flex justify-end gap-4 items-center pt-0.5">
                     <button 
                       onClick={() => setEditingId(null)} 
-                      className="text-xs font-normal text-neutral-400 hover:text-neutral-600"
+                      className="text-xs font-normal text-neutral-400 hover:text-neutral-600 px-2 py-1"
                     >
                       Cancel
                     </button>
                     <button 
                       onClick={saveEdit} 
-                      className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+                      className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors shadow-sm"
                     >
                       Save Changes
                     </button>
@@ -196,39 +205,43 @@ const App: React.FC = () => {
                     </span>
                   </div>
 
-                  {/* Aligned Micro Action Dock */}
-                  <div className="flex items-center justify-end gap-3.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150 h-4 mt-1.5 pr-0.5">
+                  {/* Icon Action Dock */}
+                  <div className="flex items-center justify-end gap-2.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-150 h-5 mt-2 pr-0.5">
                     
                     {/* Reorder Suite */}
-                    <div className="flex items-center gap-1 border-r border-neutral-100 pr-3.5 h-full">
+                    <div className="flex items-center border-r border-neutral-100 pr-2 h-full">
                       <button 
                         onClick={() => moveNode(index, 'up')} 
                         disabled={index === 0}
-                        className="text-[11px] font-medium px-1.5 py-0.5 rounded text-neutral-400 hover:text-neutral-900 disabled:opacity-20 transition-all"
+                        className="p-1 rounded text-neutral-400 hover:text-neutral-900 disabled:opacity-20 transition-all"
+                        title="Move Up"
                       >
-                        Up
+                        <ChevronUp size={15} strokeWidth={2.5} />
                       </button>
                       <button 
                         onClick={() => moveNode(index, 'down')} 
                         disabled={index === nodes.length - 1}
-                        className="text-[11px] font-medium px-1.5 py-0.5 rounded text-neutral-400 hover:text-neutral-900 disabled:opacity-20 transition-all"
+                        className="p-1 rounded text-neutral-400 hover:text-neutral-900 disabled:opacity-20 transition-all"
+                        title="Move Down"
                       >
-                        Down
+                        <ChevronDown size={15} strokeWidth={2.5} />
                       </button>
                     </div>
 
                     {/* Standard Modifiers */}
                     <button 
                       onClick={() => startEdit(node)}
-                      className="text-[11px] font-medium text-neutral-400 hover:text-neutral-900 transition-colors"
+                      className="p-1 rounded text-neutral-400 hover:text-neutral-900 transition-colors"
+                      title="Edit"
                     >
-                      Edit
+                      <Pencil size={13.5} strokeWidth={2.5} />
                     </button>
                     <button 
                       onClick={() => deleteNode(node.id)}
-                      className="text-[11px] font-medium text-neutral-300 hover:text-red-500 transition-colors"
+                      className="p-1 rounded text-neutral-300 hover:text-red-500 transition-colors"
+                      title="Delete"
                     >
-                      Delete
+                      <Trash2 size={13.5} strokeWidth={2.5} />
                     </button>
                   </div>
                 </>
