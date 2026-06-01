@@ -22,6 +22,8 @@ const firebaseConfig = {
 const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getFirestore(firebaseApp);
 
+const PIN = '3270';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProblemNode { id: string; text: string; completed: boolean; order: number; }
 interface ProblemList { id: string; name: string; createdAt: number; }
@@ -85,6 +87,10 @@ const App: React.FC = () => {
   const [nodesLoading, setNodesLoading] = useState(false);
   const [error, setError]             = useState<string | null>(null);
 
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
   // Sheet form state
   const [itemInput, setItemInput]         = useState('');
   const [editText, setEditText]           = useState('');
@@ -97,6 +103,29 @@ const App: React.FC = () => {
   const itemInputRef    = useRef<HTMLTextAreaElement>(null);
 
   const closeSheet = () => setSheet({ kind: 'none' });
+
+  const submitPin = (value: string) => {
+    if (value === PIN) {
+      setIsUnlocked(true);
+      setPinInput('');
+      setPinError(false);
+    } else {
+      setPinInput('');
+      setPinError(true);
+      setTimeout(() => setPinError(false), 1000);
+    }
+  };
+
+  const addPinDigit = (digit: string) => {
+    if (pinInput.length >= 4) return;
+    const next = pinInput + digit;
+    setPinInput(next);
+    if (next.length === 4) submitPin(next);
+  };
+
+  const removePinDigit = () => {
+    setPinInput(v => v.slice(0, -1));
+  };
 
   // ── Firebase: lists ──────────────────────────────────────────────────
   useEffect(() => {
@@ -142,6 +171,16 @@ const App: React.FC = () => {
     if (sheet.kind === 'addItem')   setTimeout(() => itemInputRef.current?.focus(), 350);
     if (sheet.kind === 'editItem')  { setEditText(sheet.node.text); setTimeout(() => textareaRef.current?.focus(), 350); }
   }, [sheet.kind]);
+
+  useEffect(() => {
+    if (isUnlocked) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) addPinDigit(e.key);
+      if (e.key === 'Backspace') removePinDigit();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isUnlocked, pinInput]);
 
   // ── CRUD: lists ──────────────────────────────────────────────────────
   const createList = async () => {
@@ -219,12 +258,12 @@ const App: React.FC = () => {
   // ── Render node text ─────────────────────────────────────────────────
   const renderText = (text: string) =>
     text.split('\n').map((line, i) => {
-      if (i === 0) return <div key={i} className="text-white font-semibold text-[16px] leading-snug">{line}</div>;
+      if (i === 0) return <div key={i} className="text-white font-semibold text-[16px] leading-snug text-left">{line}</div>;
       const content = line.trim().startsWith('-') ? line.replace(/^-\s*/, '') : line;
       return (
         <div key={i} className="flex items-start mt-1.5">
           <span className="text-[#48484a] mr-2 text-[14px] leading-relaxed select-none">–</span>
-          <span className="text-[#aeaeb2] text-[14px] leading-relaxed flex-1">{content}</span>
+          <span className="text-[#aeaeb2] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
         </div>
       );
     });
@@ -233,6 +272,39 @@ const App: React.FC = () => {
   const openCount  = nodes.filter(n => !n.completed).length;
 
   // ─────────────────────────────────────────────────────────────────────
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
+        <h1 className="text-white text-3xl font-bold mb-8">Enter PIN</h1>
+
+        <div className="flex gap-4 mb-8">
+          {[0,1,2,3].map(i => (
+            <div key={i} className={`w-4 h-4 rounded-full ${i < pinInput.length ? 'bg-[#0a84ff]' : 'bg-[#3a3a3c]'}`} />
+          ))}
+        </div>
+
+        {pinError && <div className="text-[#ff453a] mb-6 font-semibold">Incorrect PIN</div>}
+
+        <input type="text" autoFocus inputMode="none" readOnly className="absolute opacity-0 pointer-events-none" />
+
+        <div className="grid grid-cols-3 gap-4 w-full max-w-xs">
+          {[1,2,3,4,5,6,7,8,9].map(num => (
+            <button key={num} onClick={() => addPinDigit(String(num))}
+              className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-2xl font-bold">
+              {num}
+            </button>
+          ))}
+          <div />
+          <button onClick={() => addPinDigit('0')}
+            className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-2xl font-bold">0</button>
+          <button onClick={removePinDigit}
+            className="h-16 rounded-2xl bg-[#1c1c1e] text-[#ff453a] text-xl font-bold">⌫</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#000000] antialiased"
       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
@@ -344,7 +416,7 @@ const App: React.FC = () => {
               </button>
 
               {/* Text */}
-              <div className={`flex-1 min-w-0 pt-0.5 ${node.completed ? 'opacity-25' : ''}`}>
+              <div className={`flex-1 min-w-0 pt-0.5 text-left ${node.completed ? 'opacity-25' : ''}`}>
                 {renderText(node.text)}
               </div>
             </div>
