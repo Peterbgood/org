@@ -303,7 +303,8 @@ const App: React.FC = () => {
               {num}
             </button>
           ))}
-          <div />
+          <button onClick={() => { setPinInput(''); setPinError(false); }}
+            className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-xl font-bold">C</button>
           <button onClick={() => addPinDigit('0')}
             className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-2xl font-bold">0</button>
           <button onClick={removePinDigit}
