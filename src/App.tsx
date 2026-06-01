@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  ChevronUp, ChevronDown, Pencil, Trash2, Plus, Check,
+  ChevronUp, ChevronDown, ChevronsUp, Pencil, Trash2, Plus, Check,
   X, AlertCircle, ListPlus,
 } from 'lucide-react';
 import { initializeApp, getApps } from 'firebase/app';
@@ -249,6 +249,14 @@ const App: React.FC = () => {
     } catch (e: any) { setError(e.message); }
   };
 
+  const moveNodeToTop = async (node: ProblemNode) => {
+    if (!activeListId) return;
+    const minOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
+    try {
+      await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), { order: minOrder - 1 });
+    } catch (e: any) { setError(e.message); }
+  };
+
   const clearWorkspace = async () => {
     if (!activeListId) return;
     try { await Promise.all(nodes.map(n => deleteDoc(doc(db, 'lists', activeListId, 'nodes', n.id)))); }
@@ -424,6 +432,7 @@ const App: React.FC = () => {
             {/* Action bar */}
             <div className="flex items-stretch" style={{ borderTop: '1px solid #2c2c2e' }}>
               {[
+                { icon: <ChevronsUp size={19} strokeWidth={2} />,  action: () => moveNodeToTop(node),     disabled: index === 0,              color: '#636366' },
                 { icon: <ChevronUp size={19} strokeWidth={2} />,   action: () => moveNode(index, 'up'),   disabled: index === 0,              color: '#636366' },
                 { icon: <ChevronDown size={19} strokeWidth={2} />, action: () => moveNode(index, 'down'), disabled: index === nodes.length - 1, color: '#636366' },
                 { icon: <Pencil size={16} strokeWidth={2} />,      action: () => setSheet({ kind: 'editItem', node }), disabled: false, color: '#0a84ff' },
