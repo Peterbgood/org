@@ -206,6 +206,16 @@ const App: React.FC = () => {
     catch (e: any) { setError(e.message); }
   };
 
+  const moveList = async (index: number, dir: 'up' | 'down') => {
+    const ti = dir === 'up' ? index - 1 : index + 1;
+    if (ti < 0 || ti >= lists.length) return;
+    const [a, b] = [lists[index], lists[ti]];
+    try {
+      await updateDoc(doc(db, 'lists', a.id), { createdAt: b.createdAt });
+      await updateDoc(doc(db, 'lists', b.id), { createdAt: a.createdAt });
+    } catch (e: any) { setError(e.message); }
+  };
+
   // ── CRUD: nodes ──────────────────────────────────────────────────────
   const addNode = async () => {
     if (!itemInput.trim() || !activeListId) return;
@@ -612,6 +622,22 @@ const App: React.FC = () => {
                       >
                         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${activeListId === list.id ? 'bg-[#0a84ff]' : 'bg-[#3a3a3c]'}`} />
                         <span className="text-white text-[16px] font-medium truncate">{list.name}</span>
+                      </button>
+                      <button
+                        onClick={() => moveList(i, 'up')}
+                        disabled={i === 0}
+                        className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70 disabled:opacity-15"
+                        style={{ background: '#3a3a3c' }}
+                      >
+                        <ChevronUp size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
+                      </button>
+                      <button
+                        onClick={() => moveList(i, 'down')}
+                        disabled={i === lists.length - 1}
+                        className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70 disabled:opacity-15"
+                        style={{ background: '#3a3a3c' }}
+                      >
+                        <ChevronDown size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
                       </button>
                       <button
                         onClick={() => { setEditingListId(list.id); setEditingListName(list.name); }}
