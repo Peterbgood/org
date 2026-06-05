@@ -1,11 +1,10 @@
-/* Force the background to black globally */
+/* Force the background to black globally to prevent white borders */
 html, body {
   margin: 0;
   padding: 0;
   background-color: #000000;
   height: 100%;
   width: 100%;
-  overflow-x: hidden;
 }
 
 #root {
@@ -13,4 +12,15 @@ html, body {
   display: flex;
   flex-direction: column;
   background-color: #000000;
+  margin: 0 auto; /* Keeps the app centered */
+  width: 100%;
+}
+
+/* On desktops (screens wider than 1024px), re-apply the fixed-width layout */
+@media (min-width: 1024px) {
+  #root {
+    width: 1126px;
+    max-width: 100%;
+  
+  }
 }
