@@ -23,6 +23,9 @@ const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : get
 const db = getFirestore(firebaseApp);
 
 const PIN = '3270';
+const MAX_ITEM_LEN   = 500;   // characters per item
+const MAX_LIST_NAME  = 60;    // characters for a list name
+const ERROR_AUTO_DISMISS_MS = 6000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProblemNode { id: string; text: string; completed: boolean; order: number; }
@@ -36,13 +39,16 @@ type SheetKind =
   | { kind: 'confirm'; label: string; onConfirm: () => void };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+const toTitleCase = (str: string): string =>
+  str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+
 const fmt = (raw: string): string =>
   raw.split('\n').map((line, i) => {
     const t = line.trim();
     if (!t) return '';
     const c = t.replace(/^-\s*/, '');
-    const cap = c.charAt(0).toUpperCase() + c.slice(1);
-    return i === 0 ? cap : `- ${cap}`;
+    const titled = toTitleCase(c);
+    return i === 0 ? titled : `- ${titled}`;
   }).join('\n');
 
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
@@ -101,8 +107,16 @@ const App: React.FC = () => {
   const nodesUnsubRef   = useRef<(() => void) | null>(null);
   const textareaRef     = useRef<HTMLTextAreaElement>(null);
   const itemInputRef    = useRef<HTMLTextAreaElement>(null);
+  const isBusy          = useRef(false);
+  const errorTimerRef   = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const closeSheet = () => setSheet({ kind: 'none' });
+
+  const showError = (msg: string) => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    setError(msg);
+    errorTimerRef.current = setTimeout(() => setError(null), ERROR_AUTO_DISMISS_MS);
+  };
 
   const submitPin = (value: string) => {
     if (value === PIN) {
@@ -137,7 +151,7 @@ const App: React.FC = () => {
         setActiveListId(prev => (prev && data.find(l => l.id === prev)) ? prev : (data[0]?.id ?? null));
         setLoading(false);
       },
-      err => { setError(err.message); setLoading(false); }
+      err => { showError(err.message); setLoading(false); }
     );
     return () => unsub();
   }, []);
@@ -151,7 +165,7 @@ const App: React.FC = () => {
     const unsub = onSnapshot(
       query(collection(db, 'lists', activeListId, 'nodes'), orderBy('order', 'asc')),
       snap => { setNodes(snap.docs.map(d => ({ id: d.id, ...d.data() } as ProblemNode))); setNodesLoading(false); },
-      err  => { setError(err.message); setNodesLoading(false); }
+      err  => { showError(err.message); setNodesLoading(false); }
     );
     nodesUnsubRef.current = unsub;
     return () => unsub();
@@ -184,101 +198,131 @@ const App: React.FC = () => {
 
   // ── CRUD: lists ──────────────────────────────────────────────────────
   const createList = async () => {
-    if (!newListName.trim()) return;
+    const name = toTitleCase(newListName.trim().slice(0, MAX_LIST_NAME));
+    if (!name || isBusy.current) return;
+    isBusy.current = true;
     try {
-      const ref = await addDoc(collection(db, 'lists'), { name: newListName.trim(), createdAt: Date.now() });
+      const ref = await addDoc(collection(db, 'lists'), { name, createdAt: Date.now() });
       setActiveListId(ref.id);
       setNewListName('');
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const deleteList = async (id: string) => {
+    if (!id || isBusy.current) return;
+    isBusy.current = true;
     try {
       const snap = await getDocs(collection(db, 'lists', id, 'nodes'));
       await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
       await deleteDoc(doc(db, 'lists', id));
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const saveListName = async (id: string) => {
-    if (!editingListName.trim()) return;
-    try { await updateDoc(doc(db, 'lists', id), { name: editingListName.trim() }); setEditingListId(null); }
-    catch (e: any) { setError(e.message); }
+    const name = toTitleCase(editingListName.trim().slice(0, MAX_LIST_NAME));
+    if (!name || isBusy.current) return;
+    isBusy.current = true;
+    try { await updateDoc(doc(db, 'lists', id), { name }); setEditingListId(null); }
+    catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const moveList = async (index: number, dir: 'up' | 'down') => {
     const ti = dir === 'up' ? index - 1 : index + 1;
-    if (ti < 0 || ti >= lists.length) return;
+    if (ti < 0 || ti >= lists.length || isBusy.current) return;
+    isBusy.current = true;
     const [a, b] = [lists[index], lists[ti]];
     try {
       await updateDoc(doc(db, 'lists', a.id), { createdAt: b.createdAt });
       await updateDoc(doc(db, 'lists', b.id), { createdAt: a.createdAt });
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   // ── CRUD: nodes ──────────────────────────────────────────────────────
   const addNode = async () => {
-    if (!itemInput.trim() || !activeListId) return;
+    const text = fmt(itemInput.trim().slice(0, MAX_ITEM_LEN));
+    if (!text || !activeListId || isBusy.current) return;
+    isBusy.current = true;
     const minOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
     try {
       await addDoc(collection(db, 'lists', activeListId, 'nodes'), {
-        text: fmt(itemInput), completed: false, order: minOrder - 1,
+        text, completed: false, order: minOrder - 1,
       });
       setItemInput(''); closeSheet();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const saveEdit = async () => {
-    if (sheet.kind !== 'editItem' || !activeListId) return;
+    if (sheet.kind !== 'editItem' || !activeListId || isBusy.current) return;
+    const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN));
+    if (!text) return;
+    isBusy.current = true;
     try {
-      await updateDoc(doc(db, 'lists', activeListId, 'nodes', sheet.node.id), { text: fmt(editText) });
+      await updateDoc(doc(db, 'lists', activeListId, 'nodes', sheet.node.id), { text });
       closeSheet();
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const toggleComplete = async (node: ProblemNode) => {
-    if (!activeListId) return;
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
     try { await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), { completed: !node.completed }); }
-    catch (e: any) { setError(e.message); }
+    catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const deleteNode = async (id: string) => {
-    if (!activeListId) return;
+    if (!activeListId || !id || isBusy.current) return;
+    isBusy.current = true;
     try { await deleteDoc(doc(db, 'lists', activeListId, 'nodes', id)); }
-    catch (e: any) { setError(e.message); }
+    catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const moveNode = async (index: number, dir: 'up' | 'down') => {
-    if (!activeListId) return;
+    if (!activeListId || isBusy.current) return;
     const ti = dir === 'up' ? index - 1 : index + 1;
     if (ti < 0 || ti >= nodes.length) return;
+    isBusy.current = true;
     const [a, b] = [nodes[index], nodes[ti]];
     try {
       await updateDoc(doc(db, 'lists', activeListId, 'nodes', a.id), { order: b.order });
       await updateDoc(doc(db, 'lists', activeListId, 'nodes', b.id), { order: a.order });
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const moveNodeToTop = async (node: ProblemNode) => {
-    if (!activeListId) return;
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
     const minOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
     try {
       await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), { order: minOrder - 1 });
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const moveNodeToBottom = async (node: ProblemNode) => {
-    if (!activeListId) return;
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
     const maxOrder = nodes.length > 0 ? Math.max(...nodes.map(n => n.order)) : 0;
     try {
       await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), { order: maxOrder + 1 });
-    } catch (e: any) { setError(e.message); }
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   const clearWorkspace = async () => {
-    if (!activeListId) return;
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
     try { await Promise.all(nodes.map(n => deleteDoc(doc(db, 'lists', activeListId, 'nodes', n.id)))); }
-    catch (e: any) { setError(e.message); }
+    catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
   };
 
   // ── Render node text ─────────────────────────────────────────────────
@@ -342,7 +386,7 @@ const App: React.FC = () => {
           style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
           <AlertCircle size={14} className="text-white flex-shrink-0" />
           <span className="text-white text-[13px] font-medium flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="text-white/70 text-[13px] font-semibold">✕</button>
+          <button onClick={() => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); setError(null); }} className="text-white/70 text-[13px] font-semibold">✕</button>
         </div>
       )}
 
@@ -520,7 +564,7 @@ const App: React.FC = () => {
             style={{ background: '#2c2c2e', minHeight: 110 }}
             placeholder={"Title on first line…\n- Sub-point\n- Sub-point"}
             value={itemInput}
-            onChange={e => setItemInput(e.target.value)}
+            onChange={e => setItemInput(e.target.value.slice(0, MAX_ITEM_LEN))}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -529,6 +573,9 @@ const App: React.FC = () => {
               }
             }}
           />
+          <div className="text-right text-[12px] text-[#48484a] -mt-2">
+            {itemInput.length}/{MAX_ITEM_LEN}
+          </div>
           <button
             onClick={addNode}
             disabled={!itemInput.trim()}
@@ -549,7 +596,7 @@ const App: React.FC = () => {
             className="w-full text-white placeholder-[#48484a] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
             style={{ background: '#2c2c2e', minHeight: 120 }}
             value={editText}
-            onChange={e => setEditText(e.target.value)}
+            onChange={e => setEditText(e.target.value.slice(0, MAX_ITEM_LEN))}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -558,6 +605,9 @@ const App: React.FC = () => {
               }
             }}
           />
+          <div className="text-right text-[12px] text-[#48484a] -mt-2">
+            {editText.length}/{MAX_ITEM_LEN}
+          </div>
           <button
             onClick={saveEdit}
             disabled={!editText.trim()}
@@ -584,7 +634,7 @@ const App: React.FC = () => {
               style={{ background: '#2c2c2e' }}
               placeholder="New list name…"
               value={newListName}
-              onChange={e => setNewListName(e.target.value)}
+              onChange={e => setNewListName(e.target.value.slice(0, MAX_LIST_NAME))}
               onKeyDown={e => e.key === 'Enter' && createList()}
             />
             <button
@@ -612,7 +662,7 @@ const App: React.FC = () => {
                         className="flex-1 text-white text-[15px] rounded-xl px-3 py-2 focus:outline-none"
                         style={{ background: '#3a3a3c' }}
                         value={editingListName}
-                        onChange={e => setEditingListName(e.target.value)}
+                        onChange={e => setEditingListName(e.target.value.slice(0, MAX_LIST_NAME))}
                         onKeyDown={e => { if (e.key === 'Enter') saveListName(list.id); if (e.key === 'Escape') setEditingListId(null); }}
                         autoFocus
                       />
