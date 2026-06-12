@@ -271,7 +271,22 @@ const App: React.FC = () => {
   const toggleComplete = async (node: ProblemNode) => {
     if (!activeListId || isBusy.current) return;
     isBusy.current = true;
-    try { await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), { completed: !node.completed }); }
+    const nowCompleted = !node.completed;
+    let newOrder: number;
+    if (nowCompleted) {
+      // Move to bottom of the entire list
+      newOrder = nodes.length > 0 ? Math.max(...nodes.map(n => n.order)) + 1 : 0;
+    } else {
+      // Move to bottom of the incomplete items (just above the first completed item)
+      const incompleteOrders = nodes.filter(n => !n.completed && n.id !== node.id).map(n => n.order);
+      newOrder = incompleteOrders.length > 0 ? Math.max(...incompleteOrders) + 1 : Math.min(...nodes.map(n => n.order)) - 1;
+    }
+    try {
+      await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), {
+        completed: nowCompleted,
+        order: newOrder,
+      });
+    }
     catch (e: any) { showError(e.message); }
     finally { isBusy.current = false; }
   };
