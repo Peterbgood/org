@@ -341,6 +341,15 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const copyItemText = async (text: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      showError('✓ Item copied!');
+    } else {
+      showError('Failed to copy');
+    }
+  };
+
   const copyThisList = async () => {
     if (nodes.length === 0) {
       showError('No items to copy');
@@ -592,6 +601,7 @@ const App: React.FC = () => {
                 { icon: <ChevronUp size={19} strokeWidth={2} />,   action: () => moveNode(index, 'up'),   disabled: index === 0,              color: '#636366' },
                 { icon: <ChevronDown size={19} strokeWidth={2} />, action: () => moveNode(index, 'down'), disabled: index === nodes.length - 1, color: '#636366' },
                 { icon: <ChevronsDown size={19} strokeWidth={2} />, action: () => moveNodeToBottom(node), disabled: index === nodes.length - 1, color: '#636366' },
+                { icon: <Copy size={16} strokeWidth={2} />,        action: () => copyItemText(node.text), disabled: false, color: '#30d158' },
                 { icon: <Pencil size={16} strokeWidth={2} />,      action: () => setSheet({ kind: 'editItem', node }), disabled: false, color: '#0a84ff' },
                 {
                   icon: <Trash2 size={16} strokeWidth={2} />,
@@ -665,6 +675,7 @@ const App: React.FC = () => {
                 setItemInput(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
               }
             }}
+            spellCheck="true"
           />
           <div className="text-right text-[12px] text-[#48484a] -mt-2">
             {itemInput.length}/{MAX_ITEM_LEN}
@@ -697,6 +708,7 @@ const App: React.FC = () => {
                 setEditText(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
               }
             }}
+            spellCheck="true"
           />
           <div className="text-right text-[12px] text-[#48484a] -mt-2">
             {editText.length}/{MAX_ITEM_LEN}
@@ -729,6 +741,7 @@ const App: React.FC = () => {
               value={newListName}
               onChange={e => setNewListName(e.target.value.slice(0, MAX_LIST_NAME))}
               onKeyDown={e => e.key === 'Enter' && createList()}
+              spellCheck="true"
             />
             <button
               onClick={createList}
@@ -758,6 +771,7 @@ const App: React.FC = () => {
                         onChange={e => setEditingListName(e.target.value.slice(0, MAX_LIST_NAME))}
                         onKeyDown={e => { if (e.key === 'Enter') saveListName(list.id); if (e.key === 'Escape') setEditingListId(null); }}
                         autoFocus
+                        spellCheck="true"
                       />
                       <button onClick={() => saveListName(list.id)} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: '#30d15820' }}>
                         <Check size={16} strokeWidth={2.5} className="text-[#30d158]" />
