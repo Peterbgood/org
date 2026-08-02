@@ -475,7 +475,7 @@ const App: React.FC = () => {
         style={{ paddingTop: 'env(safe-area-inset-top)' }}>
 
         {/* Title row */}
-        <div className="flex items-end justify-between px-5 pt-5 pb-2">
+        <div className="flex flex-col px-5 pt-5 pb-3 gap-3">
           <div>
             <p className="text-[#636366] text-[12px] font-semibold tracking-widest uppercase mb-1">
               {loading ? '' : `${openCount} open`}
@@ -484,7 +484,7 @@ const App: React.FC = () => {
               {activeList?.name ?? 'Solver'}
             </h1>
           </div>
-          <div className="flex gap-2 mb-1">
+          <div className="flex gap-2 flex-wrap">
             {activeListId && nodes.length > 0 && (
               <>
                 <button
