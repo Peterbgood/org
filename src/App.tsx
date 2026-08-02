@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil, Trash2, Plus, Check,
-  X, AlertCircle, ListPlus,
+  X, AlertCircle, ListPlus, Copy,
 } from 'lucide-react';
 import { initializeApp, getApps } from 'firebase/app';
 import {
@@ -50,6 +50,15 @@ const fmt = (raw: string): string =>
     const titled = toTitleCase(c);
     return i === 0 ? titled : `- ${titled}`;
   }).join('\n');
+
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // ─── Bottom Sheet ─────────────────────────────────────────────────────────────
 const Sheet: React.FC<{ open: boolean; onClose: () => void; title: string; children: React.ReactNode }> =
@@ -332,6 +341,50 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const copyThisList = async () => {
+    if (nodes.length === 0) {
+      showError('No items to copy');
+      return;
+    }
+    const listText = `${activeList?.name}:\n\n${nodes.map(n => n.text).join('\n')}`;
+    const success = await copyToClipboard(listText);
+    if (success) {
+      showError('✓ List copied!');
+    } else {
+      showError('Failed to copy');
+    }
+  };
+
+  const copyAllLists = async () => {
+    if (lists.length === 0) {
+      showError('No lists to copy');
+      return;
+    }
+    try {
+      const allListsText = await Promise.all(
+        lists.map(async (list) => {
+          const querySnapshot = await getDocs(query(collection(db, 'lists', list.id, 'nodes'), orderBy('order', 'asc')));
+          const listItems = querySnapshot.docs.map(d => d.data().text);
+          if (listItems.length === 0) return null;
+          return `${list.name}:\n${listItems.join('\n')}`;
+        })
+      ).then(results => results.filter(Boolean).join('\n\n---\n\n'));
+      
+      if (!allListsText) {
+        showError('No items to copy');
+        return;
+      }
+      const success = await copyToClipboard(allListsText);
+      if (success) {
+        showError('✓ All lists copied!');
+      } else {
+        showError('Failed to copy');
+      }
+    } catch (e: any) {
+      showError('Error copying lists');
+    }
+  };
+
   const clearWorkspace = async () => {
     if (!activeListId || isBusy.current) return;
     isBusy.current = true;
@@ -395,10 +448,13 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-[#000000] antialiased"
       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
 
-      {/* Error bar */}
+      {/* Error/Success bar */}
       {error && (
-        <div className="fixed top-0 left-0 right-0 z-[60] flex items-center gap-2 px-4 py-3 bg-[#ff3b30]"
-          style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
+        <div className="fixed top-0 left-0 right-0 z-[60] flex items-center gap-2 px-4 py-3"
+          style={{ 
+            background: error.startsWith('✓') ? '#34C759' : '#ff3b30',
+            paddingTop: 'max(env(safe-area-inset-top), 12px)' 
+          }}>
           <AlertCircle size={14} className="text-white flex-shrink-0" />
           <span className="text-white text-[13px] font-medium flex-1">{error}</span>
           <button onClick={() => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); setError(null); }} className="text-white/70 text-[13px] font-semibold">✕</button>
@@ -419,13 +475,35 @@ const App: React.FC = () => {
               {activeList?.name ?? 'Solver'}
             </h1>
           </div>
-          <button
-            onClick={() => { setNewListName(''); setEditingListId(null); setSheet({ kind: 'manageLists' }); }}
-            className="mb-1 px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
-            style={{ background: '#0a84ff18' }}
-          >
-            Lists
-          </button>
+          <div className="flex gap-2 mb-1">
+            {activeListId && nodes.length > 0 && (
+              <>
+                <button
+                  onClick={copyThisList}
+                  className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                  style={{ background: '#30d15820' }}
+                >
+                  <Copy size={14} strokeWidth={2.5} />
+                  Copy List
+                </button>
+                <button
+                  onClick={copyAllLists}
+                  className="px-4 py-2 rounded-xl text-[#a2845d] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                  style={{ background: '#a2845d20' }}
+                >
+                  <Copy size={14} strokeWidth={2.5} />
+                  Copy All
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => { setNewListName(''); setEditingListId(null); setSheet({ kind: 'manageLists' }); }}
+              className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
+              style={{ background: '#0a84ff18' }}
+            >
+              Lists
+            </button>
+          </div>
         </div>
 
         {/* List pills */}
