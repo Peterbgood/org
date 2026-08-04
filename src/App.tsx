@@ -484,29 +484,29 @@ const App: React.FC = () => {
 
         {currentView === 'home' ? (
           // Home header
-          <div className="px-5 pt-5 pb-3">
-            <div className="flex items-start justify-between gap-4 mb-2">
+          <div className="px-4 py-3 md:px-5 md:pt-5 md:pb-3">
+            <div className="flex items-start justify-between gap-3 mb-1 md:mb-2">
               <div>
-                <h1 className="text-black text-[32px] font-bold tracking-tight leading-none">
+                <h1 className="text-black text-[24px] md:text-[32px] font-bold tracking-tight leading-none">
                   All Lists
                 </h1>
-                <p className="text-[#636366] text-[14px] font-medium mt-1">
+                <p className="text-[#636366] text-[12px] md:text-[14px] font-medium mt-0.5 md:mt-1">
                   {lists.length} {lists.length === 1 ? 'list' : 'lists'}
                 </p>
               </div>
               {lists.length > 0 && (
-                <div className="flex gap-2 flex-shrink-0">
+                <div className="flex gap-1.5 md:gap-2 flex-shrink-0">
                   <button
                     onClick={copyAllLists}
-                    className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#30d158] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1"
                     style={{ background: '#30d15820' }}
                   >
-                    <Copy size={14} strokeWidth={2.5} />
-                    Copy All
+                    <Copy size={12} strokeWidth={2.5} />
+                    <span className="hidden sm:inline">Copy All</span>
                   </button>
                   <button
                     onClick={() => setSheet({ kind: 'manageLists' })}
-                    className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
+                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#0a84ff] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity"
                     style={{ background: '#0a84ff18' }}
                   >
                     + Add
@@ -517,7 +517,7 @@ const App: React.FC = () => {
             {!lists.length && (
               <button
                 onClick={() => setSheet({ kind: 'manageLists' })}
-                className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
+                className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#0a84ff] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity"
                 style={{ background: '#0a84ff18' }}
               >
                 + Add List
@@ -527,20 +527,20 @@ const App: React.FC = () => {
         ) : (
           // List view header
           <>
-            <div className="flex flex-col px-5 pt-5 pb-3 gap-3">
+            <div className="flex flex-col px-4 py-3 md:px-5 md:pt-5 md:pb-3 gap-2 md:gap-3">
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => setCurrentView('home')}
-                  className="text-[#0a84ff] text-[16px] font-semibold active:opacity-60"
+                  className="text-[#0a84ff] text-[14px] md:text-[16px] font-semibold active:opacity-60"
                 >
                   ← Back
                 </button>
               </div>
               <div>
-                <p className="text-[#636366] text-[12px] font-semibold tracking-widest uppercase mb-1">
+                <p className="text-[#636366] text-[11px] md:text-[12px] font-semibold tracking-widest uppercase mb-0.5 md:mb-1">
                   {loading ? '' : `${openCount} open`}
                 </p>
-                <h1 className="text-black text-[32px] font-bold tracking-tight leading-none">
+                <h1 className="text-black text-[24px] md:text-[32px] font-bold tracking-tight leading-none">
                   {activeList?.name ?? 'Solver'}
                 </h1>
               </div>
@@ -548,10 +548,10 @@ const App: React.FC = () => {
                 {activeListId && nodes.length > 0 && (
                   <button
                     onClick={copyThisList}
-                    className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#30d158] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1 md:gap-1.5"
                     style={{ background: '#30d15820' }}
                   >
-                    <Copy size={14} strokeWidth={2.5} />
+                    <Copy size={12} strokeWidth={2.5} />
                     Copy List
                   </button>
                 )}
