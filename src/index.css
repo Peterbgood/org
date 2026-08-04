@@ -2,7 +2,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #000000;
+  background-color: #fff;
   height: 100%;
   width: 100%;
 }
@@ -11,7 +11,7 @@ html, body {
   min-height: 100svh;
   display: flex;
   flex-direction: column;
-  background-color: #000000;
+  background-color: #fff;
   margin: 0 auto; /* Keeps the app centered */
   width: 100%;
 }

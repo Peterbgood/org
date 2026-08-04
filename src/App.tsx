@@ -38,7 +38,30 @@ type SheetKind =
   | { kind: 'manageLists' }
   | { kind: 'confirm'; label: string; onConfirm: () => void };
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+  // Helper to organize lists into sections (Pinned, Today, Yesterday, This Week, etc.)
+  const getSectionedLists = () => {
+    const now = new Date();
+    const sections: { [key: string]: ProblemList[] } = {
+      pinned: [],
+      today: [],
+      yesterday: [],
+      thisWeek: [],
+      older: [],
+    };
+
+    lists.forEach(list => {
+      const listDate = new Date(list.createdAt || 0);
+      const diffTime = now.getTime() - listDate.getTime();
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays === 0) sections.today.push(list);
+      else if (diffDays === 1) sections.yesterday.push(list);
+      else if (diffDays < 7) sections.thisWeek.push(list);
+      else sections.older.push(list);
+    });
+
+    return sections;
+  };
 const toTitleCase = (str: string): string =>
   str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 
@@ -66,23 +89,23 @@ const Sheet: React.FC<{ open: boolean; onClose: () => void; title: string; child
     <>
       <div
         onClick={onClose}
-        className={`fixed inset-0 z-40 transition-all duration-300 ${open ? 'bg-black/70 pointer-events-auto' : 'bg-transparent pointer-events-none'}`}
+        className={`fixed inset-0 z-40 transition-all duration-300 ${open ? 'bg-black/20 pointer-events-auto' : 'bg-transparent pointer-events-none'}`}
       />
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 rounded-t-[28px] shadow-2xl transition-transform duration-300 ease-out ${open ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ background: '#1c1c1e', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}
+        style={{ background: '#ffffff', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}
       >
         <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-          <div className="w-9 h-[5px] rounded-full bg-[#3a3a3c]" />
+          <div className="w-9 h-[5px] rounded-full bg-[#d1d1d6]" />
         </div>
-        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #2c2c2e' }}>
-          <span className="text-white font-bold text-[18px] tracking-tight">{title}</span>
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{ borderBottom: '1px solid #e5e5e5' }}>
+          <span className="text-black font-bold text-[18px] tracking-tight">{title}</span>
           <button
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center transition-colors active:opacity-60"
-            style={{ background: '#2c2c2e' }}
+            style={{ background: '#f0f0f0' }}
           >
-            <X size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
+            <X size={15} strokeWidth={2.5} className="text-[#636366]" />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain">
@@ -96,6 +119,7 @@ const Sheet: React.FC<{ open: boolean; onClose: () => void; title: string; child
 const App: React.FC = () => {
   const [lists, setLists]             = useState<ProblemList[]>([]);
   const [activeListId, setActiveListId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<'home' | 'list'>('home');
   const [nodes, setNodes]             = useState<ProblemNode[]>([]);
   const [sheet, setSheet]             = useState<SheetKind>({ kind: 'none' });
   const [loading, setLoading]         = useState(true);
@@ -341,6 +365,15 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const copyItemText = async (text: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      showError('✓ Item copied!');
+    } else {
+      showError('Failed to copy');
+    }
+  };
+
   const copyThisList = async () => {
     if (nodes.length === 0) {
       showError('No items to copy');
@@ -393,15 +426,22 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  // Sync active list with view
+  useEffect(() => {
+    if (!activeListId) {
+      setCurrentView('home');
+    }
+  }, [activeListId]);
+
   // ── Render node text ─────────────────────────────────────────────────
   const renderText = (text: string) =>
     text.split('\n').map((line, i) => {
-      if (i === 0) return <div key={i} className="text-white font-semibold text-[16px] leading-snug text-left">{line}</div>;
+      if (i === 0) return <div key={i} className="text-black font-semibold text-[16px] leading-snug text-left">{line}</div>;
       const content = line.trim().startsWith('-') ? line.replace(/^-\s*/, '') : line;
       return (
         <div key={i} className="flex items-start mt-1.5">
-          <span className="text-[#48484a] mr-2 text-[14px] leading-relaxed select-none">–</span>
-          <span className="text-[#aeaeb2] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
+          <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>
+          <span className="text-[#636366] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
         </div>
       );
     });
@@ -413,12 +453,12 @@ const App: React.FC = () => {
 
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
-        <h1 className="text-white text-3xl font-bold mb-8">Enter PIN</h1>
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center px-6">
+        <h1 className="text-black text-3xl font-bold mb-8">Enter PIN</h1>
 
         <div className="flex gap-4 mb-8">
           {[0,1,2,3].map(i => (
-            <div key={i} className={`w-4 h-4 rounded-full ${i < pinInput.length ? 'bg-[#0a84ff]' : 'bg-[#3a3a3c]'}`} />
+            <div key={i} className={`w-4 h-4 rounded-full ${i < pinInput.length ? 'bg-[#0a84ff]' : 'bg-[#d1d1d6]'}`} />
           ))}
         </div>
 
@@ -429,23 +469,23 @@ const App: React.FC = () => {
         <div className="grid grid-cols-3 gap-4 w-full max-w-xs">
           {[1,2,3,4,5,6,7,8,9].map(num => (
             <button key={num} onClick={() => addPinDigit(String(num))}
-              className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-2xl font-bold">
+              className="h-16 rounded-2xl bg-[#f0f0f0] text-black text-2xl font-bold">
               {num}
             </button>
           ))}
           <button onClick={() => { setPinInput(''); setPinError(false); }}
-            className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-xl font-bold">C</button>
+            className="h-16 rounded-2xl bg-[#f0f0f0] text-black text-xl font-bold">C</button>
           <button onClick={() => addPinDigit('0')}
-            className="h-16 rounded-2xl bg-[#1c1c1e] text-white text-2xl font-bold">0</button>
+            className="h-16 rounded-2xl bg-[#f0f0f0] text-black text-2xl font-bold">0</button>
           <button onClick={removePinDigit}
-            className="h-16 rounded-2xl bg-[#1c1c1e] text-[#ff453a] text-xl font-bold">⌫</button>
+            className="h-16 rounded-2xl bg-[#f0f0f0] text-[#ff453a] text-xl font-bold">⌫</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#000000] antialiased"
+    <div className="min-h-screen bg-white antialiased"
       style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif' }}>
 
       {/* Error/Success bar */}
@@ -462,110 +502,158 @@ const App: React.FC = () => {
       )}
 
       {/* ── Header ── */}
-      <div className="sticky top-0 z-30 bg-[#000000]"
-        style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <div className="sticky top-0 z-30 bg-white"
+        style={{ paddingTop: 'env(safe-area-inset-top)', borderBottom: '1px solid #e5e5e5' }}>
 
-        {/* Title row */}
-        <div className="flex items-end justify-between px-5 pt-5 pb-2">
-          <div>
-            <p className="text-[#636366] text-[12px] font-semibold tracking-widest uppercase mb-1">
-              {loading ? '' : `${openCount} open`}
-            </p>
-            <h1 className="text-white text-[32px] font-bold tracking-tight leading-none">
-              {activeList?.name ?? 'Solver'}
-            </h1>
-          </div>
-          <div className="flex gap-2 mb-1">
-            {activeListId && nodes.length > 0 && (
-              <>
-                <button
-                  onClick={copyThisList}
-                  className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
-                  style={{ background: '#30d15820' }}
-                >
-                  <Copy size={14} strokeWidth={2.5} />
-                  Copy List
-                </button>
-                <button
-                  onClick={copyAllLists}
-                  className="px-4 py-2 rounded-xl text-[#a2845d] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
-                  style={{ background: '#a2845d20' }}
-                >
-                  <Copy size={14} strokeWidth={2.5} />
-                  Copy All
-                </button>
-              </>
-            )}
-            <button
-              onClick={() => { setNewListName(''); setEditingListId(null); setSheet({ kind: 'manageLists' }); }}
-              className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
-              style={{ background: '#0a84ff18' }}
-            >
-              Lists
-            </button>
-          </div>
-        </div>
-
-        {/* List pills */}
-        {lists.length > 1 && (
-          <div className="flex gap-2 px-5 pb-3 overflow-x-auto"
-            style={{ WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' } as any}>
-            {lists.map(list => (
+        {currentView === 'home' ? (
+          // Home header
+          <div className="px-5 pt-5 pb-3">
+            <div className="flex items-start justify-between gap-4 mb-2">
+              <div>
+                <h1 className="text-black text-[32px] font-bold tracking-tight leading-none">
+                  All Lists
+                </h1>
+                <p className="text-[#636366] text-[14px] font-medium mt-1">
+                  {lists.length} {lists.length === 1 ? 'list' : 'lists'}
+                </p>
+              </div>
+              {lists.length > 0 && (
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={copyAllLists}
+                    className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                    style={{ background: '#30d15820' }}
+                  >
+                    <Copy size={14} strokeWidth={2.5} />
+                    Copy All
+                  </button>
+                  <button
+                    onClick={() => setSheet({ kind: 'manageLists' })}
+                    className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
+                    style={{ background: '#0a84ff18' }}
+                  >
+                    + Add
+                  </button>
+                </div>
+              )}
+            </div>
+            {!lists.length && (
               <button
-                key={list.id}
-                onClick={() => setActiveListId(list.id)}
-                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-[14px] font-semibold transition-all active:scale-95 ${
-                  activeListId === list.id
-                    ? 'bg-white text-black'
-                    : 'text-[#8e8e93]'
-                }`}
-                style={activeListId !== list.id ? { background: '#1c1c1e' } : {}}
+                onClick={() => setSheet({ kind: 'manageLists' })}
+                className="px-4 py-2 rounded-xl text-[#0a84ff] text-[14px] font-semibold active:opacity-60 transition-opacity"
+                style={{ background: '#0a84ff18' }}
               >
-                {list.name}
+                + Add List
               </button>
-            ))}
+            )}
           </div>
+        ) : (
+          // List view header
+          <>
+            <div className="flex flex-col px-5 pt-5 pb-3 gap-3">
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setCurrentView('home')}
+                  className="text-[#0a84ff] text-[16px] font-semibold active:opacity-60"
+                >
+                  ← Back
+                </button>
+              </div>
+              <div>
+                <p className="text-[#636366] text-[12px] font-semibold tracking-widest uppercase mb-1">
+                  {loading ? '' : `${openCount} open`}
+                </p>
+                <h1 className="text-black text-[32px] font-bold tracking-tight leading-none">
+                  {activeList?.name ?? 'Solver'}
+                </h1>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {activeListId && nodes.length > 0 && (
+                  <button
+                    onClick={copyThisList}
+                    className="px-4 py-2 rounded-xl text-[#30d158] text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1.5"
+                    style={{ background: '#30d15820' }}
+                  >
+                    <Copy size={14} strokeWidth={2.5} />
+                    Copy List
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
         )}
 
-        <div className="h-px mx-5" style={{ background: '#1c1c1e' }} />
+        <div className="h-px" style={{ background: '#e5e5e5' }} />
       </div>
 
-      {/* ── Node list ── */}
+      {/* ── Main Content ── */}
       <div style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 110px)' }}>
 
-        {/* Loading */}
-        {nodesLoading && (
-          <div className="flex justify-center py-20">
-            <div className="w-7 h-7 rounded-full border-2 border-[#2c2c2e] border-t-[#636366] animate-spin" />
+        {/* HOME VIEW */}
+        {currentView === 'home' && (
+          <div>
+            {loading && (
+              <div className="flex justify-center py-20">
+                <div className="w-7 h-7 rounded-full border-2 border-[#e5e5e5] border-t-[#0a84ff] animate-spin" />
+              </div>
+            )}
+
+            {!loading && lists.length === 0 && (
+              <div className="flex flex-col items-center py-24 px-8 text-center">
+                <ListPlus size={44} strokeWidth={1} className="text-[#d1d1d6] mb-5" />
+                <p className="text-[#636366] text-[16px] mb-4">No lists yet</p>
+                <button
+                  onClick={() => setSheet({ kind: 'manageLists' })}
+                  className="px-6 py-3 rounded-2xl text-[#0a84ff] text-[16px] font-semibold active:opacity-70"
+                  style={{ background: '#0a84ff18' }}
+                >
+                  Create a list
+                </button>
+              </div>
+            )}
+
+            {!loading && lists.length > 0 && (
+              <div className="px-5 py-4">
+                {lists.map((list) => (
+                  <button
+                    key={list.id}
+                    onClick={() => { setActiveListId(list.id); setCurrentView('list'); }}
+                    className="w-full text-left mb-3 p-4 rounded-3xl transition-all active:scale-95"
+                    style={{ background: '#f0f0f0' }}
+                  >
+                    <div className="font-semibold text-black text-[18px]">{list.name}</div>
+                    <div className="text-[#636366] text-[13px] mt-1">
+                      {list.createdAt ? new Date(list.createdAt).toLocaleDateString() : ''}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Empty states */}
-        {!loading && !activeListId && !nodesLoading && (
-          <div className="flex flex-col items-center py-24 px-8 text-center">
-            <ListPlus size={44} strokeWidth={1} className="text-[#2c2c2e] mb-5" />
-            <p className="text-[#48484a] text-[16px] mb-4">No lists yet</p>
-            <button
-              onClick={() => setSheet({ kind: 'manageLists' })}
-              className="px-6 py-3 rounded-2xl text-[#0a84ff] text-[16px] font-semibold active:opacity-70"
-              style={{ background: '#0a84ff18' }}
-            >
-              Create a list
-            </button>
-          </div>
-        )}
+        {/* LIST VIEW */}
+        {currentView === 'list' && (
+          <>
+            {/* Loading */}
+            {nodesLoading && (
+              <div className="flex justify-center py-20">
+                <div className="w-7 h-7 rounded-full border-2 border-[#e5e5e5] border-t-[#0a84ff] animate-spin" />
+              </div>
+            )}
 
-        {!nodesLoading && activeListId && nodes.length === 0 && (
-          <div className="flex flex-col items-center py-24 text-center">
-            <p className="text-[#3a3a3c] text-[16px]">Nothing here</p>
-            <p className="text-[#2c2c2e] text-[14px] mt-1">Tap + to add your first item</p>
-          </div>
-        )}
+            {/* Empty states */}
+            {!nodesLoading && activeListId && nodes.length === 0 && (
+              <div className="flex flex-col items-center py-24 text-center">
+                <p className="text-[#636366] text-[16px]">Nothing here</p>
+                <p className="text-[#636366] text-[14px] mt-1">Tap + to add your first item</p>
+              </div>
+            )}
 
-        {/* Nodes */}
-        {!nodesLoading && nodes.map((node, index) => (
+            {/* Nodes */}
+            {!nodesLoading && nodes.map((node, index) => (
           <div key={node.id} className="mx-4 mt-3 rounded-3xl overflow-hidden"
-            style={{ background: node.completed ? '#0d0d0d' : '#1c1c1e' }}>
+            style={{ background: node.completed ? '#f5f5f5' : '#ffffff', border: '1px solid #e5e5e5' }}>
 
             {/* Content row */}
             <div className="flex items-start px-4 pt-4 pb-3 gap-3">
@@ -573,7 +661,7 @@ const App: React.FC = () => {
               <button
                 onClick={() => toggleComplete(node)}
                 className={`flex-shrink-0 mt-0.5 w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
-                  node.completed ? 'border-[#30d158] bg-[#30d158]' : 'border-[#3a3a3c] bg-transparent'
+                  node.completed ? 'border-[#30d158] bg-[#30d158]' : 'border-[#d1d1d6] bg-transparent'
                 }`}
               >
                 {node.completed && <Check size={14} strokeWidth={3} className="text-black" />}
@@ -586,12 +674,13 @@ const App: React.FC = () => {
             </div>
 
             {/* Action bar */}
-            <div className="flex items-stretch" style={{ borderTop: '1px solid #2c2c2e' }}>
+            <div className="flex items-stretch" style={{ borderTop: '1px solid #e5e5e5' }}>
               {[
                 { icon: <ChevronsUp size={19} strokeWidth={2} />,  action: () => moveNodeToTop(node),     disabled: index === 0,              color: '#636366' },
                 { icon: <ChevronUp size={19} strokeWidth={2} />,   action: () => moveNode(index, 'up'),   disabled: index === 0,              color: '#636366' },
                 { icon: <ChevronDown size={19} strokeWidth={2} />, action: () => moveNode(index, 'down'), disabled: index === nodes.length - 1, color: '#636366' },
                 { icon: <ChevronsDown size={19} strokeWidth={2} />, action: () => moveNodeToBottom(node), disabled: index === nodes.length - 1, color: '#636366' },
+                { icon: <Copy size={16} strokeWidth={2} />,        action: () => copyItemText(node.text), disabled: false, color: '#30d158' },
                 { icon: <Pencil size={16} strokeWidth={2} />,      action: () => setSheet({ kind: 'editItem', node }), disabled: false, color: '#0a84ff' },
                 {
                   icon: <Trash2 size={16} strokeWidth={2} />,
@@ -609,7 +698,7 @@ const App: React.FC = () => {
                     {btn.icon}
                   </button>
                   {i < arr.length - 1 && (
-                    <div className="w-px self-stretch my-2" style={{ background: '#2c2c2e' }} />
+                    <div className="w-px self-stretch my-2" style={{ background: '#e5e5e5' }} />
                   )}
                 </React.Fragment>
               ))}
@@ -633,10 +722,12 @@ const App: React.FC = () => {
             </button>
           </div>
         )}
+          </>
+        )}
       </div>
 
       {/* ── FAB ── */}
-      {activeListId && (
+      {currentView === 'list' && activeListId && (
         <button
           onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
           className="fixed right-5 z-30 w-[58px] h-[58px] rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
@@ -653,8 +744,8 @@ const App: React.FC = () => {
         <div className="px-5 py-4 flex flex-col gap-4">
           <textarea
             ref={itemInputRef}
-            className="w-full text-white placeholder-[#48484a] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
-            style={{ background: '#2c2c2e', minHeight: 110 }}
+            className="w-full text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
+            style={{ background: '#f0f0f0', minHeight: 110 }}
             placeholder={"Title on first line…\n- Sub-point\n- Sub-point"}
             value={itemInput}
             onChange={e => setItemInput(e.target.value.slice(0, MAX_ITEM_LEN))}
@@ -665,8 +756,9 @@ const App: React.FC = () => {
                 setItemInput(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
               }
             }}
+            spellCheck="true"
           />
-          <div className="text-right text-[12px] text-[#48484a] -mt-2">
+          <div className="text-right text-[12px] text-[#a3a3a7] -mt-2">
             {itemInput.length}/{MAX_ITEM_LEN}
           </div>
           <button
@@ -686,8 +778,8 @@ const App: React.FC = () => {
         <div className="px-5 py-4 flex flex-col gap-4">
           <textarea
             ref={textareaRef}
-            className="w-full text-white placeholder-[#48484a] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
-            style={{ background: '#2c2c2e', minHeight: 120 }}
+            className="w-full text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
+            style={{ background: '#f0f0f0', minHeight: 120 }}
             value={editText}
             onChange={e => setEditText(e.target.value.slice(0, MAX_ITEM_LEN))}
             onKeyDown={e => {
@@ -697,8 +789,9 @@ const App: React.FC = () => {
                 setEditText(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
               }
             }}
+            spellCheck="true"
           />
-          <div className="text-right text-[12px] text-[#48484a] -mt-2">
+          <div className="text-right text-[12px] text-[#a3a3a7] -mt-2">
             {editText.length}/{MAX_ITEM_LEN}
           </div>
           <button
@@ -723,12 +816,13 @@ const App: React.FC = () => {
           {/* Create */}
           <div className="flex gap-2 mb-5">
             <input
-              className="flex-1 text-white placeholder-[#48484a] text-[16px] rounded-2xl px-4 py-3.5 focus:outline-none"
-              style={{ background: '#2c2c2e' }}
+              className="flex-1 text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-3.5 focus:outline-none"
+              style={{ background: '#f0f0f0' }}
               placeholder="New list name…"
               value={newListName}
               onChange={e => setNewListName(e.target.value.slice(0, MAX_LIST_NAME))}
               onKeyDown={e => e.key === 'Enter' && createList()}
+              spellCheck="true"
             />
             <button
               onClick={createList}
@@ -742,28 +836,29 @@ const App: React.FC = () => {
 
           {/* List of lists */}
           {lists.length === 0 && (
-            <p className="text-[#48484a] text-[15px] text-center py-6">No lists yet.</p>
+            <p className="text-[#636366] text-[15px] text-center py-6">No lists yet.</p>
           )}
-          <div className="rounded-2xl overflow-hidden" style={{ background: '#2c2c2e' }}>
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#f0f0f0' }}>
             {lists.map((list, i) => (
               <div key={list.id}>
-                {i > 0 && <div className="h-px mx-4" style={{ background: '#3a3a3c' }} />}
+                {i > 0 && <div className="h-px mx-4" style={{ background: '#e5e5e5' }} />}
                 <div className="flex items-center px-4 py-3 gap-3">
                   {editingListId === list.id ? (
                     <>
                       <input
-                        className="flex-1 text-white text-[15px] rounded-xl px-3 py-2 focus:outline-none"
-                        style={{ background: '#3a3a3c' }}
+                        className="flex-1 text-black text-[15px] rounded-xl px-3 py-2 focus:outline-none"
+                        style={{ background: '#ffffff' }}
                         value={editingListName}
                         onChange={e => setEditingListName(e.target.value.slice(0, MAX_LIST_NAME))}
                         onKeyDown={e => { if (e.key === 'Enter') saveListName(list.id); if (e.key === 'Escape') setEditingListId(null); }}
                         autoFocus
+                        spellCheck="true"
                       />
                       <button onClick={() => saveListName(list.id)} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: '#30d15820' }}>
                         <Check size={16} strokeWidth={2.5} className="text-[#30d158]" />
                       </button>
-                      <button onClick={() => setEditingListId(null)} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: '#3a3a3c' }}>
-                        <X size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
+                      <button onClick={() => setEditingListId(null)} className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70" style={{ background: '#e5e5e5' }}>
+                        <X size={15} strokeWidth={2.5} className="text-[#636366]" />
                       </button>
                     </>
                   ) : (
@@ -772,31 +867,31 @@ const App: React.FC = () => {
                         onClick={() => { setActiveListId(list.id); closeSheet(); setEditingListId(null); }}
                         className="flex-1 flex items-center gap-3 text-left active:opacity-60"
                       >
-                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${activeListId === list.id ? 'bg-[#0a84ff]' : 'bg-[#3a3a3c]'}`} />
-                        <span className="text-white text-[16px] font-medium truncate">{list.name}</span>
+                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${activeListId === list.id ? 'bg-[#0a84ff]' : 'bg-[#d1d1d6]'}`} />
+                        <span className="text-black text-[16px] font-medium truncate">{list.name}</span>
                       </button>
                       <button
                         onClick={() => moveList(i, 'up')}
                         disabled={i === 0}
                         className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70 disabled:opacity-15"
-                        style={{ background: '#3a3a3c' }}
+                        style={{ background: '#e5e5e5' }}
                       >
-                        <ChevronUp size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
+                        <ChevronUp size={15} strokeWidth={2.5} className="text-[#636366]" />
                       </button>
                       <button
                         onClick={() => moveList(i, 'down')}
                         disabled={i === lists.length - 1}
                         className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70 disabled:opacity-15"
-                        style={{ background: '#3a3a3c' }}
+                        style={{ background: '#e5e5e5' }}
                       >
-                        <ChevronDown size={15} strokeWidth={2.5} className="text-[#8e8e93]" />
+                        <ChevronDown size={15} strokeWidth={2.5} className="text-[#636366]" />
                       </button>
                       <button
                         onClick={() => { setEditingListId(list.id); setEditingListName(list.name); }}
                         className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
-                        style={{ background: '#3a3a3c' }}
+                        style={{ background: '#e5e5e5' }}
                       >
-                        <Pencil size={14} strokeWidth={2.5} className="text-[#8e8e93]" />
+                        <Pencil size={14} strokeWidth={2.5} className="text-[#636366]" />
                       </button>
                       <button
                         onClick={() => setSheet({
@@ -805,7 +900,7 @@ const App: React.FC = () => {
                           onConfirm: () => { deleteList(list.id); closeSheet(); },
                         })}
                         className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
-                        style={{ background: '#3a3a3c' }}
+                        style={{ background: '#e5e5e5' }}
                       >
                         <Trash2 size={14} strokeWidth={2.5} className="text-[#ff453a]" />
                       </button>
@@ -823,7 +918,7 @@ const App: React.FC = () => {
       <Sheet open={sheet.kind === 'confirm'} onClose={closeSheet} title="Confirm">
         {sheet.kind === 'confirm' && (
           <div className="px-5 py-6 flex flex-col gap-3">
-            <p className="text-[#aeaeb2] text-[16px] text-center pb-2">{sheet.label}</p>
+            <p className="text-[#636366] text-[16px] text-center pb-2">{sheet.label}</p>
             <button
               onClick={sheet.onConfirm}
               className="w-full py-4 rounded-2xl text-[#ff453a] text-[17px] font-bold active:opacity-70"
