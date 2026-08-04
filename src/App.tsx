@@ -561,6 +561,33 @@ const App: React.FC = () => {
                 >
                   ← Back
                 </button>
+                <div className="flex gap-1.5 md:gap-2 flex-shrink-0">
+                  {activeListId && nodes.length > 0 && (
+                    <button
+                      onClick={copyThisList}
+                      className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#30d158] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1"
+                      style={{ background: '#30d15820' }}
+                    >
+                      <Copy size={12} strokeWidth={2.5} />
+                      <span className="hidden sm:inline">Copy</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setBulkInput(''); setSheet({ kind: 'bulkImport' }); }}
+                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#30d158] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1"
+                    style={{ background: '#30d15820' }}
+                  >
+                    <ListPlus size={12} strokeWidth={2.5} />
+                    <span className="hidden sm:inline">Import</span>
+                  </button>
+                  <button
+                    onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
+                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#0a84ff] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity"
+                    style={{ background: '#0a84ff18' }}
+                  >
+                    + Add
+                  </button>
+                </div>
               </div>
               <div>
                 <p className="text-[#636366] text-[11px] md:text-[12px] font-semibold tracking-widest uppercase mb-0.5 md:mb-1">
@@ -569,18 +596,6 @@ const App: React.FC = () => {
                 <h1 className="text-black text-[24px] md:text-[32px] font-bold tracking-tight leading-none">
                   {activeList?.name ?? 'Solver'}
                 </h1>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                {activeListId && nodes.length > 0 && (
-                  <button
-                    onClick={copyThisList}
-                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#30d158] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity flex items-center gap-1 md:gap-1.5"
-                    style={{ background: '#30d15820' }}
-                  >
-                    <Copy size={12} strokeWidth={2.5} />
-                    Copy List
-                  </button>
-                )}
               </div>
             </div>
           </>
@@ -649,7 +664,7 @@ const App: React.FC = () => {
             {!nodesLoading && activeListId && nodes.length === 0 && (
               <div className="flex flex-col items-center py-24 text-center">
                 <p className="text-[#636366] text-[16px]">Nothing here</p>
-                <p className="text-[#636366] text-[14px] mt-1">Tap + to add your first item</p>
+                <p className="text-[#636366] text-[14px] mt-1">Tap Add to create your first item</p>
               </div>
             )}
 
@@ -728,28 +743,6 @@ const App: React.FC = () => {
           </>
         )}
       </div>
-
-      {/* ── BULK IMPORT BUTTON ── */}
-      {currentView === 'list' && activeListId && (
-        <button
-          onClick={() => { setBulkInput(''); setSheet({ kind: 'bulkImport' }); }}
-          className="fixed right-5 z-30 w-[58px] h-[58px] rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 100px)', background: '#30d158' }}
-        >
-          <ListPlus size={28} strokeWidth={2.5} className="text-white" />
-        </button>
-      )}
-
-      {/* ── FAB ── */}
-      {currentView === 'list' && activeListId && (
-        <button
-          onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
-          className="fixed right-5 z-30 w-[58px] h-[58px] rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
-          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 28px)', background: '#0a84ff' }}
-        >
-          <Plus size={28} strokeWidth={2.5} className="text-white" />
-        </button>
-      )}
 
       {/* ════ BOTTOM SHEETS ══════════════════════════════════════════════ */}
 
