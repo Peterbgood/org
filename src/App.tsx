@@ -39,30 +39,7 @@ type SheetKind =
   | { kind: 'confirm'; label: string; onConfirm: () => void };
 
   // Helper to organize lists into sections (Pinned, Today, Yesterday, This Week, etc.)
-  const getSectionedLists = () => {
-    const now = new Date();
-    const sections: { [key: string]: ProblemList[] } = {
-      pinned: [],
-      today: [],
-      yesterday: [],
-      thisWeek: [],
-      older: [],
-    };
-
-    lists.forEach(list => {
-      const listDate = new Date(list.createdAt || 0);
-      const diffTime = now.getTime() - listDate.getTime();
-      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays === 0) sections.today.push(list);
-      else if (diffDays === 1) sections.yesterday.push(list);
-      else if (diffDays < 7) sections.thisWeek.push(list);
-      else sections.older.push(list);
-    });
-
-    return sections;
-  };
-const toTitleCase = (str: string): string =>
+  const toTitleCase = (str: string): string =>
   str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
 
 const fmt = (raw: string): string =>
