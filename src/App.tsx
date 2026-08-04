@@ -36,6 +36,7 @@ type SheetKind =
   | { kind: 'addItem' }
   | { kind: 'editItem'; node: ProblemNode }
   | { kind: 'manageLists' }
+  | { kind: 'bulkImport' }
   | { kind: 'confirm'; label: string; onConfirm: () => void };
 
   // Helper to organize lists into sections (Pinned, Today, Yesterday, This Week, etc.)
@@ -109,6 +110,7 @@ const App: React.FC = () => {
 
   // Sheet form state
   const [itemInput, setItemInput]         = useState('');
+  const [bulkInput, setBulkInput]         = useState('');
   const [editText, setEditText]           = useState('');
   const [newListName, setNewListName]     = useState('');
   const [editingListId, setEditingListId] = useState<string | null>(null);
@@ -266,6 +268,32 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const bulkImportNodes = async () => {
+    if (!activeListId || isBusy.current || !bulkInput.trim()) return;
+    isBusy.current = true;
+    
+    const lines = bulkInput.split('\n').filter(line => line.trim() !== '');
+    
+    try {
+      let currentMinOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
+      
+      for (let i = 0; i < lines.length; i++) {
+        await addDoc(collection(db, 'lists', activeListId, 'nodes'), {
+          text: lines[i].trim(),
+          completed: false,
+          order: currentMinOrder - 1 - i,
+        });
+      }
+      
+      setBulkInput(''); 
+      closeSheet();
+    } catch (e: any) { 
+      showError(e.message); 
+    } finally { 
+      isBusy.current = false; 
+    }
+  };
+
   const saveEdit = async () => {
     if (sheet.kind !== 'editItem' || !activeListId || isBusy.current) return;
     const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN));
@@ -284,10 +312,8 @@ const App: React.FC = () => {
     const nowCompleted = !node.completed;
     let newOrder: number;
     if (nowCompleted) {
-      // Move to bottom of the entire list
       newOrder = nodes.length > 0 ? Math.max(...nodes.map(n => n.order)) + 1 : 0;
     } else {
-      // Move to bottom of the incomplete items (just above the first completed item)
       const incompleteOrders = nodes.filter(n => !n.completed && n.id !== node.id).map(n => n.order);
       newOrder = incompleteOrders.length > 0 ? Math.max(...incompleteOrders) + 1 : Math.min(...nodes.map(n => n.order)) - 1;
     }
@@ -703,6 +729,17 @@ const App: React.FC = () => {
         )}
       </div>
 
+      {/* ── BULK IMPORT BUTTON ── */}
+      {currentView === 'list' && activeListId && (
+        <button
+          onClick={() => { setBulkInput(''); setSheet({ kind: 'bulkImport' }); }}
+          className="fixed right-5 z-30 w-[58px] h-[58px] rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-transform"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 100px)', background: '#30d158' }}
+        >
+          <ListPlus size={28} strokeWidth={2.5} className="text-white" />
+        </button>
+      )}
+
       {/* ── FAB ── */}
       {currentView === 'list' && activeListId && (
         <button
@@ -745,6 +782,29 @@ const App: React.FC = () => {
             style={{ background: '#0a84ff' }}
           >
             Add Item
+          </button>
+          <div style={{ height: 'env(safe-area-inset-bottom)' }} />
+        </div>
+      </Sheet>
+
+      {/* Bulk Import */}
+      <Sheet open={sheet.kind === 'bulkImport'} onClose={closeSheet} title="Bulk Import">
+        <div className="px-5 py-4 flex flex-col gap-4">
+          <textarea
+            className="w-full text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
+            style={{ background: '#f0f0f0', minHeight: 200 }}
+            placeholder="Paste your CSS or list here..."
+            value={bulkInput}
+            onChange={e => setBulkInput(e.target.value)}
+            spellCheck="false"
+          />
+          <button
+            onClick={bulkImportNodes}
+            disabled={!bulkInput.trim()}
+            className="w-full py-4 rounded-2xl text-white text-[17px] font-bold active:opacity-80 disabled:opacity-25 transition-opacity"
+            style={{ background: '#30d158' }}
+          >
+            Import Items
           </button>
           <div style={{ height: 'env(safe-area-inset-bottom)' }} />
         </div>
