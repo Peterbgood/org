@@ -46,13 +46,13 @@ type SheetKind =
     return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
   };
 
-const fmt = (raw: string): string =>
+const fmt = (raw: string, allowBullets: boolean = true): string =>
   raw.split('\n').map((line, i) => {
     const t = line.trim();
     if (!t) return '';
     const c = t.replace(/^-\s*/, '');
     const titled = toTitleCase(c);
-    return i === 0 ? titled : `- ${titled}`;
+    return i === 0 ? titled : (allowBullets ? `- ${titled}` : titled);
   }).join('\n');
 
 const copyToClipboard = async (text: string): Promise<boolean> => {
@@ -273,7 +273,7 @@ const App: React.FC = () => {
 
   // ── CRUD: nodes ──────────────────────────────────────────────────────
   const addNode = async () => {
-    const text = fmt(itemInput.trim().slice(0, MAX_ITEM_LEN));
+    const text = fmt(itemInput.trim().slice(0, MAX_ITEM_LEN), allowBulletPoints);
     if (!text || !activeListId || isBusy.current) return;
     isBusy.current = true;
     const minOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
@@ -314,7 +314,7 @@ const App: React.FC = () => {
 
   const saveEdit = async () => {
     if (sheet.kind !== 'editItem' || !activeListId || isBusy.current) return;
-    const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN));
+    const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN), allowBulletPoints);
     if (!text) return;
     isBusy.current = true;
     try {
@@ -460,8 +460,8 @@ const App: React.FC = () => {
       if (i === 0) return <div key={i} className="text-black font-semibold text-[16px] leading-snug text-left">{line}</div>;
       const content = line.trim().startsWith('-') ? line.replace(/^-\s*/, '') : line;
       return (
-        <div key={i} className="flex items-start mt-1.5">
-          <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>
+        <div key={i} className={`flex items-start mt-1.5 ${!allowBulletPoints ? 'ml-0' : ''}`}>
+          {allowBulletPoints && <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>}
           <span className="text-[#636366] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
         </div>
       );
