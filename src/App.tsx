@@ -29,7 +29,7 @@ const ERROR_AUTO_DISMISS_MS = 6000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProblemNode { id: string; text: string; completed: boolean; order: number; }
-interface ProblemList { id: string; name: string; createdAt: number; isFavorite?: boolean; }
+interface ProblemList { id: string; name: string; createdAt: number; isFavorite?: boolean; showCheckButton?: boolean; allowBulletPoints?: boolean; }
 
 type SheetKind =
   | { kind: 'none' }
@@ -111,9 +111,9 @@ const App: React.FC = () => {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  // Settings toggles
-  const [showCheckButton, setShowCheckButton] = useState(false);
-  const [allowBulletPoints, setAllowBulletPoints] = useState(true);
+  // Per-list settings
+  const [listShowCheckButton, setListShowCheckButton] = useState(false);
+  const [listAllowBulletPoints, setListAllowBulletPoints] = useState(true);
 
   // Sheet form state
   const [itemInput, setItemInput]         = useState('');
@@ -189,6 +189,15 @@ const App: React.FC = () => {
     nodesUnsubRef.current = unsub;
     return () => unsub();
   }, [activeListId]);
+
+  // ── Load list settings ────────────────────────────────────────────────
+  useEffect(() => {
+    const list = lists.find(l => l.id === activeListId);
+    if (list) {
+      setListShowCheckButton(list.showCheckButton ?? false);
+      setListAllowBulletPoints(list.allowBulletPoints ?? true);
+    }
+  }, [activeListId, lists]);
 
   // Auto-resize textareas
   const autoResize = (el: HTMLTextAreaElement | null) => {
@@ -271,9 +280,31 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const toggleListCheckButton = async () => {
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
+    try {
+      const newValue = !listShowCheckButton;
+      await updateDoc(doc(db, 'lists', activeListId), { showCheckButton: newValue });
+      setListShowCheckButton(newValue);
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
+  };
+
+  const toggleListBulletPoints = async () => {
+    if (!activeListId || isBusy.current) return;
+    isBusy.current = true;
+    try {
+      const newValue = !listAllowBulletPoints;
+      await updateDoc(doc(db, 'lists', activeListId), { allowBulletPoints: newValue });
+      setListAllowBulletPoints(newValue);
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
+  };
+
   // ── CRUD: nodes ──────────────────────────────────────────────────────
   const addNode = async () => {
-    const text = fmt(itemInput.trim().slice(0, MAX_ITEM_LEN), allowBulletPoints);
+    const text = fmt(itemInput.trim().slice(0, MAX_ITEM_LEN), listAllowBulletPoints);
     if (!text || !activeListId || isBusy.current) return;
     isBusy.current = true;
     const minOrder = nodes.length > 0 ? Math.min(...nodes.map(n => n.order)) : 0;
@@ -314,7 +345,7 @@ const App: React.FC = () => {
 
   const saveEdit = async () => {
     if (sheet.kind !== 'editItem' || !activeListId || isBusy.current) return;
-    const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN), allowBulletPoints);
+    const text = fmt(editText.trim().slice(0, MAX_ITEM_LEN), listAllowBulletPoints);
     if (!text) return;
     isBusy.current = true;
     try {
@@ -460,8 +491,8 @@ const App: React.FC = () => {
       if (i === 0) return <div key={i} className="text-black font-semibold text-[16px] leading-snug text-left">{line}</div>;
       const content = line.trim().startsWith('-') ? line.replace(/^-\s*/, '') : line;
       return (
-        <div key={i} className={`flex items-start mt-1.5 ${!allowBulletPoints ? 'ml-0' : ''}`}>
-          {allowBulletPoints && <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>}
+        <div key={i} className={`flex items-start mt-1.5 ${!listAllowBulletPoints ? 'ml-0' : ''}`}>
+          {listAllowBulletPoints && <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>}
           <span className="text-[#636366] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
         </div>
       );
@@ -706,7 +737,7 @@ const App: React.FC = () => {
             {/* Content row */}
             <div className="flex items-start px-4 pt-4 pb-3 gap-3">
               {/* Checkmark - conditional */}
-              {showCheckButton && (
+              {listShowCheckButton && (
                 <button
                   onClick={() => toggleComplete(node)}
                   className={`flex-shrink-0 mt-0.5 w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
@@ -785,14 +816,14 @@ const App: React.FC = () => {
             ref={itemInputRef}
             className="w-full text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
             style={{ background: '#f0f0f0', minHeight: 110 }}
-            placeholder={allowBulletPoints ? "Title on first line…\n- Sub-point\n- Sub-point" : "Title on first line…\nSub-point\nSub-point"}
+            placeholder={listAllowBulletPoints ? "Title on first line…\n- Sub-point\n- Sub-point" : "Title on first line…\nSub-point\nSub-point"}
             value={itemInput}
             onChange={e => setItemInput(e.target.value.slice(0, MAX_ITEM_LEN))}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const cur = e.currentTarget.selectionStart;
-                const bullet = allowBulletPoints ? '- ' : '';
+                const bullet = listAllowBulletPoints ? '- ' : '';
                 setItemInput(v => v.substring(0, cur) + '\n' + bullet + v.substring(cur));
               }
             }}
@@ -849,7 +880,7 @@ const App: React.FC = () => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const cur = e.currentTarget.selectionStart;
-                const bullet = allowBulletPoints ? '- ' : '';
+                const bullet = listAllowBulletPoints ? '- ' : '';
                 setEditText(v => v.substring(0, cur) + '\n' + bullet + v.substring(cur));
               }
             }}
@@ -988,6 +1019,8 @@ const App: React.FC = () => {
       {/* Settings */}
       <Sheet open={sheet.kind === 'settings'} onClose={closeSheet} title="Settings">
         <div className="px-5 py-4 flex flex-col gap-4">
+          <p className="text-[#636366] text-[13px] font-medium">These settings apply only to this list</p>
+          
           <div className="rounded-2xl overflow-hidden" style={{ background: '#f0f0f0' }}>
             {/* Show Check Button Toggle */}
             <div className="flex items-center justify-between px-4 py-4">
@@ -996,14 +1029,14 @@ const App: React.FC = () => {
                 <p className="text-[#636366] text-[13px] mt-1">Mark items complete</p>
               </div>
               <button
-                onClick={() => setShowCheckButton(!showCheckButton)}
+                onClick={toggleListCheckButton}
                 className={`w-[52px] h-[32px] rounded-full flex items-center transition-all ${
-                  showCheckButton ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
+                  listShowCheckButton ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
                 }`}
               >
                 <div
                   className={`w-[28px] h-[28px] rounded-full bg-white transition-transform ${
-                    showCheckButton ? 'translate-x-[20px]' : 'translate-x-[2px]'
+                    listShowCheckButton ? 'translate-x-[20px]' : 'translate-x-[2px]'
                   }`}
                 />
               </button>
@@ -1018,14 +1051,14 @@ const App: React.FC = () => {
                 <p className="text-[#636366] text-[13px] mt-1">Auto add "- " on new line</p>
               </div>
               <button
-                onClick={() => setAllowBulletPoints(!allowBulletPoints)}
+                onClick={toggleListBulletPoints}
                 className={`w-[52px] h-[32px] rounded-full flex items-center transition-all ${
-                  allowBulletPoints ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
+                  listAllowBulletPoints ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
                 }`}
               >
                 <div
                   className={`w-[28px] h-[28px] rounded-full bg-white transition-transform ${
-                    allowBulletPoints ? 'translate-x-[20px]' : 'translate-x-[2px]'
+                    listAllowBulletPoints ? 'translate-x-[20px]' : 'translate-x-[2px]'
                   }`}
                 />
               </button>
