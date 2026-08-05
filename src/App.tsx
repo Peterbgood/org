@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, Pencil, Trash2, Plus, Check,
-  X, AlertCircle, ListPlus, Copy,
+  X, AlertCircle, ListPlus, Copy, Settings, Star,
 } from 'lucide-react';
 import { initializeApp, getApps } from 'firebase/app';
 import {
@@ -29,7 +29,7 @@ const ERROR_AUTO_DISMISS_MS = 6000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface ProblemNode { id: string; text: string; completed: boolean; order: number; }
-interface ProblemList { id: string; name: string; createdAt: number; }
+interface ProblemList { id: string; name: string; createdAt: number; isFavorite?: boolean; }
 
 type SheetKind =
   | { kind: 'none' }
@@ -37,11 +37,14 @@ type SheetKind =
   | { kind: 'editItem'; node: ProblemNode }
   | { kind: 'manageLists' }
   | { kind: 'bulkImport' }
+  | { kind: 'settings' }
   | { kind: 'confirm'; label: string; onConfirm: () => void };
 
   // Helper to organize lists into sections (Pinned, Today, Yesterday, This Week, etc.)
-  const toTitleCase = (str: string): string =>
-  str.replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+  const toTitleCase = (str: string): string => {
+    const trimmed = str.trim();
+    return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  };
 
 const fmt = (raw: string): string =>
   raw.split('\n').map((line, i) => {
@@ -107,6 +110,10 @@ const App: React.FC = () => {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+
+  // Settings toggles
+  const [showCheckButton, setShowCheckButton] = useState(false);
+  const [allowBulletPoints, setAllowBulletPoints] = useState(true);
 
   // Sheet form state
   const [itemInput, setItemInput]         = useState('');
@@ -249,6 +256,17 @@ const App: React.FC = () => {
     try {
       await updateDoc(doc(db, 'lists', a.id), { createdAt: b.createdAt });
       await updateDoc(doc(db, 'lists', b.id), { createdAt: a.createdAt });
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
+  };
+
+  const toggleFavorite = async (id: string) => {
+    if (!id || isBusy.current) return;
+    isBusy.current = true;
+    const list = lists.find(l => l.id === id);
+    if (!list) return;
+    try {
+      await updateDoc(doc(db, 'lists', id), { isFavorite: !list.isFavorite });
     } catch (e: any) { showError(e.message); }
     finally { isBusy.current = false; }
   };
@@ -562,6 +580,13 @@ const App: React.FC = () => {
                   ← Back
                 </button>
                 <div className="flex gap-1.5 md:gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => setSheet({ kind: 'settings' })}
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-[#636366] active:opacity-60 transition-opacity"
+                    style={{ background: '#e5e5e5' }}
+                  >
+                    <Settings size={18} strokeWidth={2} />
+                  </button>
                   {activeListId && nodes.length > 0 && (
                     <button
                       onClick={copyThisList}
@@ -632,16 +657,21 @@ const App: React.FC = () => {
 
             {!loading && lists.length > 0 && (
               <div className="px-5 py-4">
-                {lists.map((list) => (
+                {[...lists].sort((a, b) => (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0)).map((list) => (
                   <button
                     key={list.id}
                     onClick={() => { setActiveListId(list.id); setCurrentView('list'); }}
-                    className="w-full text-left mb-3 p-4 rounded-3xl transition-all active:scale-95"
+                    className="w-full text-left mb-3 p-4 rounded-3xl transition-all active:scale-95 flex items-start justify-between gap-3"
                     style={{ background: '#f0f0f0' }}
                   >
-                    <div className="font-semibold text-black text-[18px]">{list.name}</div>
-                    <div className="text-[#636366] text-[13px] mt-1">
-                      {list.createdAt ? new Date(list.createdAt).toLocaleDateString() : ''}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-black text-[18px] flex items-center gap-2">
+                        {list.name}
+                        {list.isFavorite && <Star size={16} className="text-[#FFD700] fill-[#FFD700] flex-shrink-0" strokeWidth={2} />}
+                      </div>
+                      <div className="text-[#636366] text-[13px] mt-1">
+                        {list.createdAt ? new Date(list.createdAt).toLocaleDateString() : ''}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -675,15 +705,17 @@ const App: React.FC = () => {
 
             {/* Content row */}
             <div className="flex items-start px-4 pt-4 pb-3 gap-3">
-              {/* Checkmark */}
-              <button
-                onClick={() => toggleComplete(node)}
-                className={`flex-shrink-0 mt-0.5 w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
-                  node.completed ? 'border-[#30d158] bg-[#30d158]' : 'border-[#d1d1d6] bg-transparent'
-                }`}
-              >
-                {node.completed && <Check size={14} strokeWidth={3} className="text-black" />}
-              </button>
+              {/* Checkmark - conditional */}
+              {showCheckButton && (
+                <button
+                  onClick={() => toggleComplete(node)}
+                  className={`flex-shrink-0 mt-0.5 w-[26px] h-[26px] rounded-full border-2 flex items-center justify-center transition-all active:scale-90 ${
+                    node.completed ? 'border-[#30d158] bg-[#30d158]' : 'border-[#d1d1d6] bg-transparent'
+                  }`}
+                >
+                  {node.completed && <Check size={14} strokeWidth={3} className="text-black" />}
+                </button>
+              )}
 
               {/* Text */}
               <div className={`flex-1 min-w-0 pt-0.5 text-left ${node.completed ? 'opacity-25' : ''}`}>
@@ -753,14 +785,15 @@ const App: React.FC = () => {
             ref={itemInputRef}
             className="w-full text-black placeholder-[#636366] text-[16px] rounded-2xl px-4 py-4 focus:outline-none resize-none leading-relaxed"
             style={{ background: '#f0f0f0', minHeight: 110 }}
-            placeholder={"Title on first line…\n- Sub-point\n- Sub-point"}
+            placeholder={allowBulletPoints ? "Title on first line…\n- Sub-point\n- Sub-point" : "Title on first line…\nSub-point\nSub-point"}
             value={itemInput}
             onChange={e => setItemInput(e.target.value.slice(0, MAX_ITEM_LEN))}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const cur = e.currentTarget.selectionStart;
-                setItemInput(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
+                const bullet = allowBulletPoints ? '- ' : '';
+                setItemInput(v => v.substring(0, cur) + '\n' + bullet + v.substring(cur));
               }
             }}
             spellCheck="true"
@@ -816,7 +849,8 @@ const App: React.FC = () => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const cur = e.currentTarget.selectionStart;
-                setEditText(v => v.substring(0, cur) + '\n- ' + v.substring(cur));
+                const bullet = allowBulletPoints ? '- ' : '';
+                setEditText(v => v.substring(0, cur) + '\n' + bullet + v.substring(cur));
               }
             }}
             spellCheck="true"
@@ -917,6 +951,13 @@ const App: React.FC = () => {
                         <ChevronDown size={15} strokeWidth={2.5} className="text-[#636366]" />
                       </button>
                       <button
+                        onClick={() => toggleFavorite(list.id)}
+                        className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
+                        style={{ background: list.isFavorite ? '#FFD70018' : '#e5e5e5' }}
+                      >
+                        <Star size={14} strokeWidth={2.5} className={list.isFavorite ? 'text-[#FFD700] fill-[#FFD700]' : 'text-[#636366]'} />
+                      </button>
+                      <button
                         onClick={() => { setEditingListId(list.id); setEditingListName(list.name); }}
                         className="w-9 h-9 rounded-full flex items-center justify-center active:opacity-70"
                         style={{ background: '#e5e5e5' }}
@@ -940,6 +981,65 @@ const App: React.FC = () => {
               </div>
             ))}
           </div>
+          <div style={{ height: 'env(safe-area-inset-bottom)' }} />
+        </div>
+      </Sheet>
+
+      {/* Settings */}
+      <Sheet open={sheet.kind === 'settings'} onClose={closeSheet} title="Settings">
+        <div className="px-5 py-4 flex flex-col gap-4">
+          <div className="rounded-2xl overflow-hidden" style={{ background: '#f0f0f0' }}>
+            {/* Show Check Button Toggle */}
+            <div className="flex items-center justify-between px-4 py-4">
+              <div>
+                <p className="text-black text-[16px] font-semibold">Check Button</p>
+                <p className="text-[#636366] text-[13px] mt-1">Mark items complete</p>
+              </div>
+              <button
+                onClick={() => setShowCheckButton(!showCheckButton)}
+                className={`w-[52px] h-[32px] rounded-full flex items-center transition-all ${
+                  showCheckButton ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
+                }`}
+              >
+                <div
+                  className={`w-[28px] h-[28px] rounded-full bg-white transition-transform ${
+                    showCheckButton ? 'translate-x-[20px]' : 'translate-x-[2px]'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="h-px mx-4" style={{ background: '#e5e5e5' }} />
+
+            {/* Allow Bullet Points Toggle */}
+            <div className="flex items-center justify-between px-4 py-4">
+              <div>
+                <p className="text-black text-[16px] font-semibold">Bullet Points</p>
+                <p className="text-[#636366] text-[13px] mt-1">Auto add "- " on new line</p>
+              </div>
+              <button
+                onClick={() => setAllowBulletPoints(!allowBulletPoints)}
+                className={`w-[52px] h-[32px] rounded-full flex items-center transition-all ${
+                  allowBulletPoints ? 'bg-[#30d158]' : 'bg-[#e5e5e5]'
+                }`}
+              >
+                <div
+                  className={`w-[28px] h-[28px] rounded-full bg-white transition-transform ${
+                    allowBulletPoints ? 'translate-x-[20px]' : 'translate-x-[2px]'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <p className="text-[#636366] text-[13px] px-1 leading-relaxed">
+            💡 <strong>Check Button:</strong> When enabled, tap the circle to mark items complete. When disabled, use the edit or action buttons instead.
+          </p>
+
+          <p className="text-[#636366] text-[13px] px-1 leading-relaxed">
+            💡 <strong>Bullet Points:</strong> When enabled, pressing Enter auto-adds "- " for sub-items. When disabled, pressing Enter adds plain text lines.
+          </p>
+
           <div style={{ height: 'env(safe-area-inset-bottom)' }} />
         </div>
       </Sheet>
