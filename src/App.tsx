@@ -636,13 +636,6 @@ const App: React.FC = () => {
                     <ListPlus size={12} strokeWidth={2.5} />
                     <span className="hidden sm:inline">Import</span>
                   </button>
-                  <button
-                    onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
-                    className="px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-[#0a84ff] text-[12px] md:text-[14px] font-semibold active:opacity-60 transition-opacity"
-                    style={{ background: '#0a84ff18' }}
-                  >
-                    + Add
-                  </button>
                 </div>
               </div>
               <div>
@@ -726,6 +719,13 @@ const App: React.FC = () => {
               <div className="flex flex-col items-center py-24 text-center">
                 <p className="text-[#636366] text-[16px]">Nothing here</p>
                 <p className="text-[#636366] text-[14px] mt-1">Tap Add to create your first item</p>
+                <button
+                  onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
+                  className="mt-5 px-6 py-3 rounded-2xl text-[#0a84ff] text-[16px] font-semibold active:opacity-70 transition-opacity"
+                  style={{ background: '#0a84ff18' }}
+                >
+                  + Add
+                </button>
               </div>
             )}
 
@@ -786,6 +786,19 @@ const App: React.FC = () => {
             </div>
           </div>
         ))}
+
+        {/* Add item — below the last entry */}
+        {!nodesLoading && nodes.length > 0 && (
+          <div className="mx-4 mt-3">
+            <button
+              onClick={() => { setItemInput(''); setSheet({ kind: 'addItem' }); }}
+              className="w-full py-3.5 rounded-3xl text-[#0a84ff] text-[15px] font-semibold active:opacity-60 transition-opacity"
+              style={{ background: '#0a84ff18' }}
+            >
+              + Add
+            </button>
+          </div>
+        )}
 
         {/* Clear workspace */}
         {nodes.length > 0 && (
