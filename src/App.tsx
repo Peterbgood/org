@@ -417,6 +417,25 @@ const App: React.FC = () => {
     finally { isBusy.current = false; }
   };
 
+  const moveSubBullet = async (node: ProblemNode, subIndex: number, move: 'top' | 'up' | 'down' | 'bottom') => {
+    if (!activeListId || isBusy.current) return;
+    const lines = node.text.split('\n');
+    const subs = lines.slice(1);
+    if (subIndex < 0 || subIndex >= subs.length) return;
+    const ti = move === 'top' ? 0 : move === 'up' ? subIndex - 1 : move === 'down' ? subIndex + 1 : subs.length - 1;
+    if (ti === subIndex || ti < 0 || ti >= subs.length) return;
+    const reordered = [...subs];
+    const [moved] = reordered.splice(subIndex, 1);
+    reordered.splice(ti, 0, moved);
+    isBusy.current = true;
+    try {
+      await updateDoc(doc(db, 'lists', activeListId, 'nodes', node.id), {
+        text: [lines[0], ...reordered].join('\n'),
+      });
+    } catch (e: any) { showError(e.message); }
+    finally { isBusy.current = false; }
+  };
+
   const copyItemText = async (text: string) => {
     const success = await copyToClipboard(text);
     if (success) {
@@ -486,17 +505,41 @@ const App: React.FC = () => {
   }, [activeListId]);
 
   // ── Render node text ─────────────────────────────────────────────────
-  const renderText = (text: string) =>
-    text.split('\n').map((line, i) => {
+  const renderText = (node: ProblemNode) => {
+    const lines = node.text.split('\n');
+    const subCount = lines.length - 1;
+    return lines.map((line, i) => {
       if (i === 0) return <div key={i} className="text-black font-semibold text-[16px] leading-snug text-left">{line}</div>;
       const content = line.trim().startsWith('-') ? line.replace(/^-\s*/, '') : line;
+      const subIndex = i - 1;
+      const subBtns = [
+        { icon: <ChevronsUp size={13} strokeWidth={2.5} />,   move: 'top' as const,    disabled: subIndex === 0 },
+        { icon: <ChevronUp size={13} strokeWidth={2.5} />,    move: 'up' as const,     disabled: subIndex === 0 },
+        { icon: <ChevronDown size={13} strokeWidth={2.5} />,  move: 'down' as const,   disabled: subIndex === subCount - 1 },
+        { icon: <ChevronsDown size={13} strokeWidth={2.5} />, move: 'bottom' as const, disabled: subIndex === subCount - 1 },
+      ];
       return (
-        <div key={i} className={`flex items-start mt-1.5 ${!listAllowBulletPoints ? 'ml-0' : ''}`}>
-          {listAllowBulletPoints && <span className="text-[#636366] mr-2 text-[14px] leading-relaxed select-none">–</span>}
-          <span className="text-[#636366] text-[14px] leading-relaxed flex-1 text-left">{content}</span>
+        <div key={i} className={`flex items-center mt-1.5 gap-1 ${!listAllowBulletPoints ? 'ml-0' : ''}`}>
+          {listAllowBulletPoints && <span className="text-[#636366] mr-1 text-[14px] leading-relaxed select-none">–</span>}
+          <span className="text-[#636366] text-[14px] leading-relaxed flex-1 min-w-0 text-left">{content}</span>
+          {subCount > 1 && (
+            <span className="flex items-center flex-shrink-0 rounded-full overflow-hidden" style={{ background: '#f0f0f0' }}>
+              {subBtns.map((btn, bi) => (
+                <button
+                  key={bi}
+                  onClick={() => moveSubBullet(node, subIndex, btn.move)}
+                  disabled={btn.disabled}
+                  className="w-[26px] h-[26px] flex items-center justify-center text-[#636366] active:opacity-40 disabled:opacity-15 transition-opacity"
+                >
+                  {btn.icon}
+                </button>
+              ))}
+            </span>
+          )}
         </div>
       );
     });
+  };
 
   const activeList = lists.find(l => l.id === activeListId);
   const openCount  = nodes.filter(n => !n.completed).length;
@@ -750,7 +793,7 @@ const App: React.FC = () => {
 
               {/* Text */}
               <div className={`flex-1 min-w-0 pt-0.5 text-left ${node.completed ? 'opacity-25' : ''}`}>
-                {renderText(node.text)}
+                {renderText(node)}
               </div>
             </div>
 
